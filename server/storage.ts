@@ -48,9 +48,7 @@ export interface IStorage {
   sessionStore: session.Store;
 }
 
-  }
-
-export class DatabaseStorage implements IStorage {
+  export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
