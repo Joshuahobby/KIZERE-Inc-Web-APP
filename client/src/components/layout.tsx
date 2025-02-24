@@ -4,11 +4,10 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useLocation } from "wouter";
-import { Home, Search, Plus, LogOut, User } from "lucide-react";
+import { Home, Search, Plus, LogOut, User, Settings } from "lucide-react";
 
 export function NavLink({ href, children, isActive }: { href: string; children: React.ReactNode; isActive?: boolean }) {
   return (
@@ -48,6 +47,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Search className="mr-2 h-4 w-4" />
             Search Items
           </NavLink>
+          {user?.isAdmin && (
+            <NavLink href="/admin" isActive={location === "/admin"}>
+              <Settings className="mr-2 h-4 w-4" />
+              Admin
+            </NavLink>
+          )}
         </nav>
 
         <div className="absolute bottom-4 w-52">
