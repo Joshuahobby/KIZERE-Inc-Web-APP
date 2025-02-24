@@ -3,6 +3,28 @@ import { pgTable, text, serial, timestamp, boolean, json, integer } from "drizzl
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Users table
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(),
+  profilePicture: text("profile_picture"),
+  isAdmin: boolean("is_admin").notNull().default(false),
+  roleId: integer("role_id").references(() => roles.id),
+  createdAt: timestamp("created_at").notNull().defaultNow()
+});
+
+export const insertUserSchema = createInsertSchema(users)
+  .pick({
+    username: true,
+    password: true,
+    isAdmin: true,
+    roleId: true
+  });
+
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+
 // Role definition table
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),

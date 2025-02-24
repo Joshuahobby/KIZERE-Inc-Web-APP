@@ -1,4 +1,4 @@
-import { agents, documents, devices, subscribers, roles, type Agent, type InsertAgent, type Document, type Device, type InsertDocument, type InsertDevice, type Role, type InsertRole } from "@shared/schema";
+import { agents, documents, devices, subscribers, roles, users, type Agent, type InsertAgent, type Document, type Device, type InsertDocument, type InsertDevice, type Role, type InsertRole, type User, type InsertUser } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, or, isNull } from "drizzle-orm";
 import session from "express-session";
