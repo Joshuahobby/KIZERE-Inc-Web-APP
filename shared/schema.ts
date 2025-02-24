@@ -1,3 +1,4 @@
+
 import { pgTable, text, serial, timestamp, boolean, json, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -11,80 +12,102 @@ export const roles = pgTable("roles", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const users = pgTable("users", {
+// Agents table
+export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
+  firstName: text("first_name").notNull(),
+  lastName: text("last_name").notNull(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  profilePicture: text("profile_picture"),
-  roleId: integer("role_id").references(() => roles.id),
-  isAdmin: boolean("is_admin").notNull().default(false),
+  nid: text("nid").notNull().unique(),
+  picture: text("picture"),
+  phoneNumber: text("phone_number").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const items = pgTable("items", {
+// Subscribers table
+export const subscribers = pgTable("subscribers", {
+  id: serial("id").primaryKey(),
+  fullNames: text("full_names").notNull(),
+  email: text("email").notNull().unique(),
+  primaryContact: text("primary_contact").notNull(),
+  secondaryContact: text("secondary_contact"),
+  notificationPreferences: json("notification_preferences").$type<Record<string, boolean>>(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Documents table
+export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   uniqueId: text("unique_id").notNull().unique(),
-  name: text("name").notNull(),
-  category: text("category").notNull(),
+  title: text("title").notNull(),
   description: text("description").notNull(),
-  status: text("status").notNull(), // LOST, FOUND, CLAIMED, RETURNED
-  location: text("location").notNull(),
-  reportedBy: serial("reported_by").references(() => users.id),
-  images: text("images").array(),
-  metadata: json("metadata").$type<Record<string, string>>(),
+  category: text("category").notNull(),
+  status: text("status").notNull(),
+  lastLocation: text("last_location").notNull(),
+  ownerInfo: json("owner_info").$type<Record<string, string>>(),
+  reportedBy: integer("reported_by").references(() => agents.id),
   reportedAt: timestamp("reported_at").notNull().defaultNow(),
   moderated: boolean("moderated").notNull().default(false),
-  moderatedBy: serial("moderated_by").references(() => users.id),
+  moderatedBy: integer("moderated_by").references(() => agents.id),
   moderatedAt: timestamp("moderated_at"),
-  registrationNumber: text("registration_number"),
-  serialNumber: text("serial_number"),
-  brand: text("brand"),
-  model: text("model"),
 });
 
-export const userActivityLog = pgTable("user_activity_log", {
+// Devices table
+export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
-  userId: serial("user_id").references(() => users.id),
-  action: text("action").notNull(), // LOGIN, LOGOUT, ITEM_REPORT, ITEM_UPDATE
-  details: json("details").$type<Record<string, any>>(),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
+  uniqueId: text("unique_id").notNull().unique(),
+  category: text("category").notNull(),
+  brandModel: text("brand_model").notNull(),
+  serialNumber: text("serial_number"),
+  description: text("description").notNull(),
+  picture: text("picture"),
+  ownerInfo: json("owner_info").$type<Record<string, string>>(),
+  lastLocation: text("last_location").notNull(),
+  status: text("status").notNull(),
+  reportedBy: integer("reported_by").references(() => agents.id),
+  reportedAt: timestamp("reported_at").notNull().defaultNow(),
+  moderated: boolean("moderated").notNull().default(false),
+  moderatedBy: integer("moderated_by").references(() => agents.id),
+  moderatedAt: timestamp("moderated_at"),
 });
 
-// Role schemas
-export const insertRoleSchema = createInsertSchema(roles).pick({
-  name: true,
-  description: true,
-  permissions: true,
-});
-
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
-
-export const insertItemSchema = createInsertSchema(items)
+// Schemas for validation
+export const insertAgentSchema = createInsertSchema(agents);
+export const insertSubscriberSchema = createInsertSchema(subscribers);
+export const insertDocumentSchema = createInsertSchema(documents)
   .pick({
-    name: true,
-    category: true,
+    title: true,
     description: true,
+    category: true,
     status: true,
-    location: true,
-    images: true,
-    metadata: true,
-    registrationNumber: true,
-    serialNumber: true,
-    brand: true,
-    model: true,
+    lastLocation: true,
+    ownerInfo: true,
   })
   .extend({
-    status: z.enum(["LOST", "FOUND", "CLAIMED", "RETURNED"]),
-    category: z.enum(["DOCUMENTS", "ELECTRONICS", "CLOTHING", "ACCESSORIES", "OTHER"]),
+    status: z.enum(["LOST", "FOUND", "REVIEW"]),
   });
 
-export type Role = typeof roles.$inferSelect;
-export type InsertRole = z.infer<typeof insertRoleSchema>;
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type Item = typeof items.$inferSelect;
-export type InsertItem = z.infer<typeof insertItemSchema>;
-export type UserActivityLog = typeof userActivityLog.$inferSelect;
+export const insertDeviceSchema = createInsertSchema(devices)
+  .pick({
+    category: true,
+    brandModel: true,
+    serialNumber: true,
+    description: true,
+    picture: true,
+    ownerInfo: true,
+    lastLocation: true,
+    status: true,
+  })
+  .extend({
+    status: z.enum(["LOST", "FOUND", "REVIEW"]),
+  });
+
+export type Agent = typeof agents.$inferSelect;
+export type InsertAgent = z.infer<typeof insertAgentSchema>;
+export type Subscriber = typeof subscribers.$inferSelect;
+export type InsertSubscriber = z.infer<typeof insertSubscriberSchema>;
+export type Document = typeof documents.$inferSelect;
+export type InsertDocument = z.infer<typeof insertDocumentSchema>;
+export type Device = typeof devices.$inferSelect;
+export type InsertDevice = z.infer<typeof insertDeviceSchema>;
