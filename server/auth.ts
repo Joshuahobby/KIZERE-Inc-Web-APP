@@ -5,14 +5,14 @@ import session from "express-session";
 import multer from "multer";
 import path from "path";
 
-const storage = multer.diskStorage({
+const diskStorage = multer.diskStorage({
   destination: "attached_assets",
   filename: (_req, file, cb) => {
     cb(null, `image_${Date.now()}${path.extname(file.originalname)}`);
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({ storage: diskStorage });
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
