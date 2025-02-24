@@ -74,6 +74,7 @@ export const devices = pgTable("devices", {
 
 // Schemas for validation
 export const insertAgentSchema = createInsertSchema(agents);
+export const insertRoleSchema = createInsertSchema(roles);
 export const insertSubscriberSchema = createInsertSchema(subscribers);
 export const insertDocumentSchema = createInsertSchema(documents)
   .pick({
