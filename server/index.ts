@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { Sequelize } from 'sequelize'; // Assuming Sequelize ORM
+// Using Drizzle ORM as specified in the project
 
 const app = express();
 app.use(express.json());
