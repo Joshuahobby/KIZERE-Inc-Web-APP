@@ -1,105 +1,100 @@
 import { users, items, type User, type InsertUser, type Item, type InsertItem } from "@shared/schema";
+import { db } from "./db";
+import { eq, like, or } from "drizzle-orm";
 import session from "express-session";
-import createMemoryStore from "memorystore";
-import { nanoid } from "nanoid";
+import connectPg from "connect-pg-simple";
+import { pool } from "./db";
 
-const MemoryStore = createMemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
-  
+
   createItem(item: InsertItem & { reportedBy: number }): Promise<Item>;
   getItem(id: number): Promise<Item | undefined>;
   getItemByUniqueId(uniqueId: string): Promise<Item | undefined>;
   updateItemStatus(id: number, status: Item["status"]): Promise<Item>;
   searchItems(query: string): Promise<Item[]>;
   getUserItems(userId: number): Promise<Item[]>;
-  
+
   sessionStore: session.Store;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<number, User>;
-  private items: Map<number, Item>;
-  private currentUserId: number;
-  private currentItemId: number;
+export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    this.users = new Map();
-    this.items = new Map();
-    this.currentUserId = 1;
-    this.currentItemId = 1;
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000,
+    this.sessionStore = new PostgresSessionStore({
+      pool,
+      createTableIfMissing: true,
     });
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.currentUserId++;
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async createItem(item: InsertItem & { reportedBy: number }): Promise<Item> {
-    const id = this.currentItemId++;
-    const newItem: Item = {
-      ...item,
-      id,
-      uniqueId: nanoid(10),
-      reportedAt: new Date(),
-    };
-    this.items.set(id, newItem);
+    const [newItem] = await db
+      .insert(items)
+      .values({
+        ...item,
+        uniqueId: `ITEM-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
+      })
+      .returning();
     return newItem;
   }
 
   async getItem(id: number): Promise<Item | undefined> {
-    return this.items.get(id);
+    const [item] = await db.select().from(items).where(eq(items.id, id));
+    return item;
   }
 
   async getItemByUniqueId(uniqueId: string): Promise<Item | undefined> {
-    return Array.from(this.items.values()).find(
-      (item) => item.uniqueId === uniqueId,
-    );
+    const [item] = await db.select().from(items).where(eq(items.uniqueId, uniqueId));
+    return item;
   }
 
   async updateItemStatus(id: number, status: Item["status"]): Promise<Item> {
-    const item = this.items.get(id);
-    if (!item) throw new Error("Item not found");
-    
-    const updatedItem = { ...item, status };
-    this.items.set(id, updatedItem);
-    return updatedItem;
+    const [item] = await db
+      .update(items)
+      .set({ status })
+      .where(eq(items.id, id))
+      .returning();
+    return item;
   }
 
   async searchItems(query: string): Promise<Item[]> {
-    const lowercaseQuery = query.toLowerCase();
-    return Array.from(this.items.values()).filter(
-      (item) =>
-        item.name.toLowerCase().includes(lowercaseQuery) ||
-        item.description.toLowerCase().includes(lowercaseQuery) ||
-        item.uniqueId.toLowerCase() === lowercaseQuery
-    );
+    if (!query) return [];
+
+    return db
+      .select()
+      .from(items)
+      .where(
+        or(
+          like(items.name, `%${query}%`),
+          like(items.description, `%${query}%`),
+          eq(items.uniqueId, query)
+        )
+      );
   }
 
   async getUserItems(userId: number): Promise<Item[]> {
-    return Array.from(this.items.values()).filter(
-      (item) => item.reportedBy === userId
-    );
+    return db.select().from(items).where(eq(items.reportedBy, userId));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
