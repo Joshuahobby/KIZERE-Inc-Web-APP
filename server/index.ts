@@ -57,18 +57,8 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Added database migration (replace with your actual migration code)
-  try {
-    const sequelize = new Sequelize('your_database_name', 'your_user', 'your_password', {
-      dialect: 'postgres', // Or your database dialect
-      host: 'your_db_host' // Or your database host
-    });
-    await sequelize.query(`ALTER TABLE users ADD COLUMN profile_picture TEXT;`);
-    console.log('Database migration successful!');
-    await sequelize.close();
-  } catch (error) {
-    console.error('Database migration failed:', error);
-  }
+  // Database migrations should be handled by Drizzle
+  log('Server initialized with database connection');
 
   // ALWAYS serve the app on port 5000, listening on 0.0.0.0
   const port = 5000;
