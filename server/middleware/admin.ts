@@ -5,7 +5,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  if (!req.user.isAdmin) {
+  if (!req.user?.isAdmin) {
     return res.status(403).json({ message: "Forbidden" });
   }
 
