@@ -99,6 +99,20 @@ export function setupAuth(app: Express) {
     res.json(req.user);
   });
 
+  app.post("/api/user/profile-picture", upload.single('profilePicture'), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    try {
+      const user = await storage.updateUser(req.user.id, {
+        profilePicture: `/uploads/${req.file.filename}`
+      });
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update profile picture" });
+    }
+  });
+
   // New route for updating user profile
   app.patch("/api/user/profile", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

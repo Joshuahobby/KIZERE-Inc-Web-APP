@@ -49,6 +49,38 @@ export default function ProfilePage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    const formData = new FormData();
+    formData.append('profilePicture', file);
+
+    try {
+      const res = await fetch('/api/user/profile-picture', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!res.ok) throw new Error('Failed to upload image');
+      const data = await res.json();
+      queryClient.invalidateQueries(['user']);
+      toast({
+        title: 'Profile picture updated',
+        description: 'Your profile picture has been updated successfully.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to upload profile picture',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingImage(false);
+    }
+  };
 
   const form = useForm<ProfileUpdateForm>({
     resolver: zodResolver(profileUpdateSchema),
@@ -122,6 +154,34 @@ export default function ProfilePage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="mb-6">
+                <div className="flex items-center gap-4">
+                  <Avatar className="w-24 h-24">
+                    {user?.profilePicture ? (
+                      <img src={user.profilePicture} alt={user.username} className="w-full h-full object-cover rounded-full" />
+                    ) : (
+                      <AvatarFallback className="text-2xl">
+                        {user?.username.substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <div>
+                    <Label htmlFor="picture" className="cursor-pointer">
+                      <div className="inline-flex items-center justify-center h-10 px-4 py-2 text-sm font-medium transition-colors rounded-md focus-visible:outline-none focus-visible:ring-1 bg-primary text-primary-foreground hover:bg-primary/90">
+                        {uploadingImage ? 'Uploading...' : 'Change Picture'}
+                      </div>
+                    </Label>
+                    <input
+                      type="file"
+                      id="picture"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageUpload}
+                      disabled={uploadingImage}
+                    />
+                  </div>
+                </div>
+              </div>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                   <FormField

@@ -20,9 +20,13 @@ export function ProfileMenu() {
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger className="outline-none">
         <Avatar>
-          <AvatarFallback>
-            {user.username.substring(0, 2).toUpperCase()}
-          </AvatarFallback>
+          {user.profilePicture ? (
+            <img src={user.profilePicture} alt={user.username} className="w-full h-full object-cover rounded-full" />
+          ) : (
+            <AvatarFallback>
+              {user.username.substring(0, 2).toUpperCase()}
+            </AvatarFallback>
+          )}
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
