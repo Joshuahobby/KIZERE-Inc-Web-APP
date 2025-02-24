@@ -64,6 +64,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-52">
+              <DropdownMenuItem asChild>
+                <a href="/profile">
+                  <User className="mr-2 h-4 w-4" />
+                  Profile Settings
+                </a>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => logoutMutation.mutate()}
                 disabled={logoutMutation.isPending}

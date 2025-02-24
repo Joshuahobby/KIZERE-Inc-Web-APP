@@ -8,6 +8,7 @@ import AuthPage from "@/pages/auth-page";
 import ReportItem from "@/pages/report-item";
 import SearchItems from "@/pages/search-items";
 import AdminDashboard from "@/pages/admin/dashboard";
+import ProfilePage from "@/pages/dashboard/profile";
 import { AuthProvider } from "./hooks/use-auth";
 import { NotificationsProvider } from "./hooks/use-notifications";
 import { ProtectedRoute } from "./lib/protected-route";
@@ -24,6 +25,7 @@ function Router() {
             <ProtectedRoute path="/" component={HomePage} />
             <ProtectedRoute path="/report" component={ReportItem} />
             <ProtectedRoute path="/search" component={SearchItems} />
+            <ProtectedRoute path="/profile" component={ProfilePage} />
             <ProtectedAdminRoute path="/admin" component={AdminDashboard} />
             <Route component={NotFound} />
           </Switch>
