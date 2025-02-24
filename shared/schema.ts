@@ -112,3 +112,34 @@ export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
+
+// Define the items table schema and validation
+export const items = pgTable("items", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull(),
+  location: text("location").notNull(),
+  images: json("images").$type<string[]>(),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  reportedBy: integer("reported_by").references(() => agents.id),
+  reportedAt: timestamp("reported_at").notNull().defaultNow(),
+});
+
+export const insertItemSchema = createInsertSchema(items)
+  .pick({
+    name: true,
+    category: true,
+    description: true,
+    status: true,
+    location: true,
+    images: true,
+    metadata: true,
+  })
+  .extend({
+    status: z.enum(["LOST", "FOUND", "REVIEW"]),
+  });
+
+export type Item = typeof items.$inferSelect;
+export type InsertItem = z.infer<typeof insertItemSchema>;
