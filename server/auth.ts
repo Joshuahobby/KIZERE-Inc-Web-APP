@@ -98,4 +98,34 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     res.json(req.user);
   });
+
+  // New route for updating user profile
+  app.patch("/api/user/profile", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const { username, currentPassword, newPassword } = req.body;
+    const user = await storage.getUser(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Verify current password
+    if (!(await comparePasswords(currentPassword, user.password))) {
+      return res.status(400).json({ error: "Current password is incorrect" });
+    }
+
+    // Update user data
+    const updates: Partial<SelectUser> = { username };
+    if (newPassword) {
+      updates.password = await hashPassword(newPassword);
+    }
+
+    try {
+      const updatedUser = await storage.updateUser(user.id, updates);
+      res.json(updatedUser);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update profile" });
+    }
+  });
 }
