@@ -9,6 +9,7 @@ import ReportItem from "@/pages/report-item";
 import SearchItems from "@/pages/search-items";
 import AdminDashboard from "@/pages/admin/dashboard";
 import { AuthProvider } from "./hooks/use-auth";
+import { NotificationsProvider } from "./hooks/use-notifications";
 import { ProtectedRoute } from "./lib/protected-route";
 import { ProtectedAdminRoute } from "./lib/protected-admin-route";
 import { Layout } from "@/components/layout";
@@ -36,8 +37,10 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Router />
-        <Toaster />
+        <NotificationsProvider>
+          <Router />
+          <Toaster />
+        </NotificationsProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

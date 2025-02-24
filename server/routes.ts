@@ -4,6 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { insertItemSchema } from "@shared/schema";
 import { adminRouter } from "./routes/admin";
+import { setupWebSocket, notificationServer } from "./websocket";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -11,7 +12,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount admin routes
   app.use("/api/admin", adminRouter);
 
-  // Existing routes...
   app.get("/api/items", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -45,6 +45,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       details: { itemId: item.id, status: item.status },
     });
 
+    // Send notification to admins
+    notificationServer.broadcastAdminNotification({
+      type: "ADMIN_ALERT",
+      message: `New ${item.status.toLowerCase()} item reported: ${item.name}`,
+      data: { item },
+    });
+
     res.status(201).json(item);
   });
 
@@ -71,9 +78,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       details: { itemId: id, oldStatus: item.status, newStatus: updatedItem.status },
     });
 
+    // Send notification to the item owner
+    notificationServer.sendNotification(item.reportedBy, {
+      type: "ITEM_STATUS_CHANGE",
+      message: `Item "${item.name}" status changed to ${updatedItem.status}`,
+      data: { item: updatedItem },
+    });
+
     res.json(updatedItem);
   });
 
   const httpServer = createServer(app);
+
+  // Setup WebSocket server
+  setupWebSocket(httpServer);
+
   return httpServer;
 }
