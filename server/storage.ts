@@ -48,16 +48,7 @@ export interface IStorage {
   sessionStore: session.Store;
 }
 
-  // New methods for roles
-  createRole(role: InsertRole): Promise<Role>;
-  getRole(id: number): Promise<Role | undefined>;
-  getAllRoles(): Promise<Role[]>;
-  updateRole(id: number, updates: Partial<Role>): Promise<Role>;
-  deleteRole(id: number): Promise<void>;
-  assignUserRole(userId: number, roleId: number): Promise<User>;
-
-  sessionStore: session.Store;
-}
+  }
 
 export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
