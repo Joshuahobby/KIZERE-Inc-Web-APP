@@ -1,11 +1,21 @@
-import { pgTable, text, serial, timestamp, boolean, json } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, json, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Role definition table
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  description: text("description"),
+  permissions: json("permissions").$type<string[]>().notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
 
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  roleId: integer("role_id").references(() => roles.id),
   isAdmin: boolean("is_admin").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
@@ -25,6 +35,10 @@ export const items = pgTable("items", {
   moderated: boolean("moderated").notNull().default(false),
   moderatedBy: serial("moderated_by").references(() => users.id),
   moderatedAt: timestamp("moderated_at"),
+  registrationNumber: text("registration_number"),
+  serialNumber: text("serial_number"),
+  brand: text("brand"),
+  model: text("model"),
 });
 
 export const userActivityLog = pgTable("user_activity_log", {
@@ -33,6 +47,13 @@ export const userActivityLog = pgTable("user_activity_log", {
   action: text("action").notNull(), // LOGIN, LOGOUT, ITEM_REPORT, ITEM_UPDATE
   details: json("details").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Role schemas
+export const insertRoleSchema = createInsertSchema(roles).pick({
+  name: true,
+  description: true,
+  permissions: true,
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -49,12 +70,18 @@ export const insertItemSchema = createInsertSchema(items)
     location: true,
     images: true,
     metadata: true,
+    registrationNumber: true,
+    serialNumber: true,
+    brand: true,
+    model: true,
   })
   .extend({
     status: z.enum(["LOST", "FOUND", "CLAIMED", "RETURNED"]),
     category: z.enum(["DOCUMENTS", "ELECTRONICS", "CLOTHING", "ACCESSORIES", "OTHER"]),
   });
 
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Item = typeof items.$inferSelect;

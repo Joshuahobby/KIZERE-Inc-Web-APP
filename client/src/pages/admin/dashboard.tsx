@@ -18,22 +18,48 @@ import {
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserCheck, Users, AlertTriangle } from "lucide-react";
+import { Loader2, UserCheck, Users, AlertTriangle, Shield } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Role, User, Item } from "@shared/schema";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useState } from "react";
+
+type AdminStats = {
+  totalUsers: number;
+  totalItems: number;
+  unmoderatedItems: number;
+  itemsByCategory: Record<string, number>;
+  itemsByStatus: Record<string, number>;
+};
+
+type UnmoderatedItem = Pick<Item, 'id' | 'name' | 'category' | 'reportedBy' | 'status'>;
 
 export default function AdminDashboard() {
   const { toast } = useToast();
+  const [newRole, setNewRole] = useState({ name: "", description: "", permissions: [] });
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
   });
 
-  const { data: users, isLoading: usersLoading } = useQuery({
+  const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
   });
 
-  const { data: unmoderatedItems, isLoading: moderationLoading } = useQuery({
+  const { data: roles, isLoading: rolesLoading } = useQuery<Role[]>({
+    queryKey: ["/api/admin/roles"],
+  });
+
+  const { data: unmoderatedItems = [], isLoading: moderationLoading } = useQuery<UnmoderatedItem[]>({
     queryKey: ["/api/admin/moderation"],
   });
 
@@ -52,8 +78,8 @@ export default function AdminDashboard() {
   });
 
   const updateUserMutation = useMutation({
-    mutationFn: async ({ id, isAdmin }: { id: number; isAdmin: boolean }) => {
-      const res = await apiRequest("PATCH", `/api/admin/users/${id}`, { isAdmin });
+    mutationFn: async ({ id, isAdmin, roleId }: { id: number; isAdmin?: boolean; roleId?: number }) => {
+      const res = await apiRequest("PATCH", `/api/admin/users/${id}`, { isAdmin, roleId });
       return res.json();
     },
     onSuccess: () => {
@@ -65,7 +91,22 @@ export default function AdminDashboard() {
     },
   });
 
-  if (statsLoading || usersLoading || moderationLoading) {
+  const createRoleMutation = useMutation({
+    mutationFn: async (role: { name: string; description: string; permissions: string[] }) => {
+      const res = await apiRequest("POST", "/api/admin/roles", role);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/roles"] });
+      toast({
+        title: "Role created",
+        description: "New role has been created successfully.",
+      });
+      setNewRole({ name: "", description: "", permissions: [] });
+    },
+  });
+
+  if (statsLoading || usersLoading || moderationLoading || rolesLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -78,7 +119,7 @@ export default function AdminDashboard() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight mb-2">Admin Dashboard</h1>
         <p className="text-muted-foreground">
-          Manage users, moderate content, and view system analytics
+          Manage users, roles, moderate content, and view system analytics
         </p>
       </div>
 
@@ -90,7 +131,7 @@ export default function AdminDashboard() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalUsers}</div>
+            <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
           </CardContent>
         </Card>
 
@@ -100,28 +141,109 @@ export default function AdminDashboard() {
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalItems}</div>
+            <div className="text-2xl font-bold">{stats?.totalItems || 0}</div>
             <div className="text-xs text-muted-foreground mt-1">
-              {stats?.unmoderatedItems} pending moderation
+              {stats?.unmoderatedItems || 0} pending moderation
             </div>
           </CardContent>
         </Card>
 
+        {/* Role Statistics */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">User Roles</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{roles?.length || 0}</div>
+          </CardContent>
+        </Card>
+
         {/* Category Distribution */}
-        <Card className="col-span-2">
+        <Card className="col-span-1">
           <CardHeader>
             <CardTitle className="text-sm font-medium">Items by Category</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-2 gap-4">
+          <CardContent className="space-y-2">
             {Object.entries(stats?.itemsByCategory || {}).map(([category, count]) => (
-              <div key={category}>
-                <div className="text-sm font-medium">{category}</div>
-                <div className="text-2xl font-bold">{count}</div>
+              <div key={category} className="flex justify-between">
+                <span className="text-sm font-medium">{category}</span>
+                <span className="text-sm">{count}</span>
               </div>
             ))}
           </CardContent>
         </Card>
       </div>
+
+      {/* Role Management */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Role Management</CardTitle>
+          <Dialog>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                Create New Role
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Create New Role</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Role Name</Label>
+                  <Input
+                    value={newRole.name}
+                    onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Input
+                    value={newRole.description}
+                    onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
+                  />
+                </div>
+                <Button 
+                  onClick={() => createRoleMutation.mutate(newRole)}
+                  disabled={createRoleMutation.isPending}
+                >
+                  {createRoleMutation.isPending && (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  )}
+                  Create Role
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Role Name</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Users Assigned</TableHead>
+                <TableHead>Created At</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(roles || []).map((role) => (
+                <TableRow key={role.id}>
+                  <TableCell className="font-medium">{role.name}</TableCell>
+                  <TableCell>{role.description}</TableCell>
+                  <TableCell>
+                    {(users || []).filter(user => user.roleId === role.id).length}
+                  </TableCell>
+                  <TableCell>
+                    {format(new Date(role.createdAt), "PPp")}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       {/* User Management */}
       <Card>
@@ -135,15 +257,38 @@ export default function AdminDashboard() {
                 <TableHead>Username</TableHead>
                 <TableHead>Created At</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Admin Status</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users?.map((user) => (
+              {(users || []).map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>{user.username}</TableCell>
                   <TableCell>
                     {format(new Date(user.createdAt), "PPp")}
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={user.roleId?.toString() || ""}
+                      onValueChange={(value) =>
+                        updateUserMutation.mutate({
+                          id: user.id,
+                          roleId: parseInt(value),
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(roles || []).map((role) => (
+                          <SelectItem key={role.id} value={role.id.toString()}>
+                            {role.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell>
                     <Select
@@ -182,7 +327,7 @@ export default function AdminDashboard() {
           <CardTitle>Content Moderation</CardTitle>
         </CardHeader>
         <CardContent>
-          {unmoderatedItems?.length === 0 ? (
+          {unmoderatedItems.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No items pending moderation
             </div>
@@ -198,7 +343,7 @@ export default function AdminDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {unmoderatedItems?.map((item) => (
+                {unmoderatedItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{item.category}</TableCell>

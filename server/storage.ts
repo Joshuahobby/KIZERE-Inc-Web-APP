@@ -1,4 +1,4 @@
-import { users, items, userActivityLog, type User, type InsertUser, type Item, type InsertItem, type UserActivityLog } from "@shared/schema";
+import { users, items, userActivityLog, roles, type User, type InsertUser, type Item, type InsertItem, type UserActivityLog, type Role, type InsertRole } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, or, isNull } from "drizzle-orm";
 import session from "express-session";
@@ -8,6 +8,7 @@ import { pool } from "./db";
 const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
+  // Existing methods
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
@@ -24,6 +25,15 @@ export interface IStorage {
   getUnmoderatedItems(): Promise<Item[]>;
   moderateItem(id: number, moderatorId: number): Promise<Item>;
   logActivity(log: Omit<UserActivityLog, "id" | "createdAt">): Promise<UserActivityLog>;
+
+  // New methods for roles
+  createRole(role: InsertRole): Promise<Role>;
+  getRole(id: number): Promise<Role | undefined>;
+  getAllRoles(): Promise<Role[]>;
+  updateRole(id: number, updates: Partial<Role>): Promise<Role>;
+  deleteRole(id: number): Promise<void>;
+  assignUserRole(userId: number, roleId: number): Promise<User>;
+
   sessionStore: session.Store;
 }
 
@@ -37,6 +47,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
+  // Existing methods remain unchanged
   async getUser(id: number): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
     return user;
@@ -92,7 +103,9 @@ export class DatabaseStorage implements IStorage {
         or(
           like(items.name, `%${query}%`),
           like(items.description, `%${query}%`),
-          eq(items.uniqueId, query)
+          eq(items.uniqueId, query),
+          like(items.registrationNumber, `%${query}%`),
+          like(items.serialNumber, `%${query}%`)
         )
       );
   }
@@ -148,6 +161,43 @@ export class DatabaseStorage implements IStorage {
       .values(log)
       .returning();
     return activity;
+  }
+
+  // New methods for role management
+  async createRole(role: InsertRole): Promise<Role> {
+    const [newRole] = await db.insert(roles).values(role).returning();
+    return newRole;
+  }
+
+  async getRole(id: number): Promise<Role | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.id, id));
+    return role;
+  }
+
+  async getAllRoles(): Promise<Role[]> {
+    return db.select().from(roles);
+  }
+
+  async updateRole(id: number, updates: Partial<Role>): Promise<Role> {
+    const [role] = await db
+      .update(roles)
+      .set(updates)
+      .where(eq(roles.id, id))
+      .returning();
+    return role;
+  }
+
+  async deleteRole(id: number): Promise<void> {
+    await db.delete(roles).where(eq(roles.id, id));
+  }
+
+  async assignUserRole(userId: number, roleId: number): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ roleId })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
   }
 }
 
