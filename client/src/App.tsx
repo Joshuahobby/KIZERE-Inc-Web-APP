@@ -9,15 +9,22 @@ import ReportItem from "@/pages/report-item";
 import SearchItems from "@/pages/search-items";
 import { AuthProvider } from "./hooks/use-auth";
 import { ProtectedRoute } from "./lib/protected-route";
+import { Layout } from "@/components/layout";
 
 function Router() {
   return (
     <Switch>
-      <ProtectedRoute path="/" component={HomePage} />
-      <ProtectedRoute path="/report" component={ReportItem} />
-      <ProtectedRoute path="/search" component={SearchItems} />
       <Route path="/auth" component={AuthPage} />
-      <Route component={NotFound} />
+      <Route>
+        <Layout>
+          <Switch>
+            <ProtectedRoute path="/" component={HomePage} />
+            <ProtectedRoute path="/report" component={ReportItem} />
+            <ProtectedRoute path="/search" component={SearchItems} />
+            <Route component={NotFound} />
+          </Switch>
+        </Layout>
+      </Route>
     </Switch>
   );
 }
