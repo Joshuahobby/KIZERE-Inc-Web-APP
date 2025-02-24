@@ -1,4 +1,4 @@
-import { users, items, userActivityLog, roles, type User, type InsertUser, type Item, type InsertItem, type UserActivityLog, type Role, type InsertRole } from "@shared/schema";
+import { agents, documents, devices, subscribers, roles, type Agent, type InsertAgent, type Document, type Device, type InsertDocument, type InsertDevice, type Role, type InsertRole } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, or, isNull } from "drizzle-orm";
 import session from "express-session";
@@ -8,23 +8,45 @@ import { pool } from "./db";
 const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
-  // Existing methods
-  getUser(id: number): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
-  createItem(item: InsertItem & { reportedBy: number }): Promise<Item>;
-  getItem(id: number): Promise<Item | undefined>;
-  getItemByUniqueId(uniqueId: string): Promise<Item | undefined>;
-  updateItemStatus(id: number, status: Item["status"]): Promise<Item>;
-  searchItems(query: string): Promise<Item[]>;
-  getUserItems(userId: number): Promise<Item[]>;
-  getAllUsers(): Promise<User[]>;
-  getAllItems(): Promise<Item[]>;
-  updateUser(id: number, updates: Partial<User>): Promise<User>;
-  getActivityLogs(): Promise<UserActivityLog[]>;
-  getUnmoderatedItems(): Promise<Item[]>;
-  moderateItem(id: number, moderatorId: number): Promise<Item>;
-  logActivity(log: Omit<UserActivityLog, "id" | "createdAt">): Promise<UserActivityLog>;
+  // Agent methods
+  getAgent(id: number): Promise<Agent | undefined>;
+  getAgentByUsername(username: string): Promise<Agent | undefined>;
+  createAgent(agent: InsertAgent): Promise<Agent>;
+  getAllAgents(): Promise<Agent[]>;
+  updateAgent(id: number, updates: Partial<Agent>): Promise<Agent>;
+
+  // Document methods
+  createDocument(doc: InsertDocument & { reportedBy: number }): Promise<Document>;
+  getDocument(id: number): Promise<Document | undefined>;
+  getDocumentByUniqueId(uniqueId: string): Promise<Document | undefined>;
+  updateDocumentStatus(id: number, status: Document["status"]): Promise<Document>;
+  searchDocuments(query: string): Promise<Document[]>;
+  getAgentDocuments(agentId: number): Promise<Document[]>;
+  getAllDocuments(): Promise<Document[]>;
+  getUnmoderatedDocuments(): Promise<Document[]>;
+  moderateDocument(id: number, moderatorId: number): Promise<Document>;
+
+  // Device methods
+  createDevice(device: InsertDevice & { reportedBy: number }): Promise<Device>;
+  getDevice(id: number): Promise<Device | undefined>;
+  getDeviceByUniqueId(uniqueId: string): Promise<Device | undefined>;
+  updateDeviceStatus(id: number, status: Device["status"]): Promise<Device>;
+  searchDevices(query: string): Promise<Device[]>;
+  getAgentDevices(agentId: number): Promise<Device[]>;
+  getAllDevices(): Promise<Device[]>;
+  getUnmoderatedDevices(): Promise<Device[]>;
+  moderateDevice(id: number, moderatorId: number): Promise<Device>;
+
+  // Role methods
+  createRole(role: InsertRole): Promise<Role>;
+  getRole(id: number): Promise<Role | undefined>;
+  getAllRoles(): Promise<Role[]>;
+  updateRole(id: number, updates: Partial<Role>): Promise<Role>;
+  deleteRole(id: number): Promise<void>;
+  assignAgentRole(agentId: number, roleId: number): Promise<Agent>;
+
+  sessionStore: session.Store;
+}
 
   // New methods for roles
   createRole(role: InsertRole): Promise<Role>;
