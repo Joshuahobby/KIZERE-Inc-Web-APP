@@ -25,7 +25,7 @@ function Router() {
             <ProtectedRoute path="/" component={HomePage} />
             <ProtectedRoute path="/report" component={ReportItem} />
             <ProtectedRoute path="/search" component={SearchItems} />
-            <ProtectedRoute path="/profile" component={ProfilePage} />
+            <ProtectedRoute path="/dashboard/profile" component={ProfilePage} />
             <ProtectedAdminRoute path="/admin" component={AdminDashboard} />
             <Route component={NotFound} />
           </Switch>
