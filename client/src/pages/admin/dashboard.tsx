@@ -43,9 +43,20 @@ type AdminStats = {
 
 type UnmoderatedItem = Pick<Item, 'id' | 'name' | 'category' | 'reportedBy' | 'status'>;
 
+type NewRole = {
+  name: string;
+  description: string;
+  permissions: string[];
+};
+
 export default function AdminDashboard() {
   const { toast } = useToast();
-  const [newRole, setNewRole] = useState({ name: "", description: "", permissions: [] });
+  const [newRole, setNewRole] = useState<NewRole>({ 
+    name: "", 
+    description: "", 
+    permissions: [] 
+  });
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
@@ -92,8 +103,12 @@ export default function AdminDashboard() {
   });
 
   const createRoleMutation = useMutation({
-    mutationFn: async (role: { name: string; description: string; permissions: string[] }) => {
+    mutationFn: async (role: NewRole) => {
       const res = await apiRequest("POST", "/api/admin/roles", role);
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to create role");
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -103,6 +118,14 @@ export default function AdminDashboard() {
         description: "New role has been created successfully.",
       });
       setNewRole({ name: "", description: "", permissions: [] });
+      setDialogOpen(false);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error creating role",
+        description: error.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -113,6 +136,18 @@ export default function AdminDashboard() {
       </div>
     );
   }
+
+  const handleCreateRole = () => {
+    if (!newRole.name.trim()) {
+      toast({
+        title: "Validation error",
+        description: "Role name is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    createRoleMutation.mutate(newRole);
+  };
 
   return (
     <div className="p-8 space-y-8">
@@ -179,7 +214,7 @@ export default function AdminDashboard() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Role Management</CardTitle>
-          <Dialog>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button size="sm">
                 Create New Role
@@ -195,6 +230,7 @@ export default function AdminDashboard() {
                   <Input
                     value={newRole.name}
                     onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+                    placeholder="Enter role name"
                   />
                 </div>
                 <div className="space-y-2">
@@ -202,10 +238,11 @@ export default function AdminDashboard() {
                   <Input
                     value={newRole.description}
                     onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
+                    placeholder="Enter role description"
                   />
                 </div>
                 <Button 
-                  onClick={() => createRoleMutation.mutate(newRole)}
+                  onClick={handleCreateRole}
                   disabled={createRoleMutation.isPending}
                 >
                   {createRoleMutation.isPending && (

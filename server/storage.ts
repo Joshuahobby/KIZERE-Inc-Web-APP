@@ -165,7 +165,11 @@ export class DatabaseStorage implements IStorage {
 
   // New methods for role management
   async createRole(role: InsertRole): Promise<Role> {
-    const [newRole] = await db.insert(roles).values(role).returning();
+    const [newRole] = await db.insert(roles).values({
+      name: role.name,
+      description: role.description,
+      permissions: role.permissions as string[],
+    }).returning();
     return newRole;
   }
 
