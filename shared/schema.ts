@@ -22,71 +22,20 @@ export const roles = pgTable("roles", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Items table
-export const items = pgTable("items", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  category: text("category").notNull(),
-  description: text("description").notNull(),
-  status: text("status").notNull(),
-  location: text("location").notNull(),
-  images: json("images").$type<string[]>(),
-  metadata: json("metadata").$type<Record<string, unknown>>(),
-  reportedBy: integer("reported_by").references(() => users.id),
-  reportedAt: timestamp("reported_at").notNull().defaultNow(),
-  moderated: boolean("moderated").notNull().default(false),
-  moderatedBy: integer("moderated_by").references(() => users.id),
-  moderatedAt: timestamp("moderated_at"),
-});
-
-// Schema definitions
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-  isAdmin: true,
-  roleId: true
-});
-
-export const insertRoleSchema = createInsertSchema(roles);
-
-export const insertItemSchema = createInsertSchema(items)
-  .pick({
-    name: true,
-    category: true,
-    description: true,
-    status: true,
-    location: true,
-    images: true,
-    metadata: true,
-  })
-  .extend({
-    status: z.enum(["LOST", "FOUND", "CLAIMED", "RETURNED"]),
-    category: z.enum(["DOCUMENTS", "ELECTRONICS", "CLOTHING", "ACCESSORIES", "OTHER"]),
-  });
-
-// Type exports
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type Role = typeof roles.$inferSelect;
-export type InsertRole = z.infer<typeof insertRoleSchema>;
-export type Item = typeof items.$inferSelect;
-export type InsertItem = z.infer<typeof insertItemSchema>;
-
-
-// Agents table
+// Agents table - for handling lost & found items
 export const agents = pgTable("agents", {
   id: serial("id").primaryKey(),
   firstName: text("first_name").notNull(),
   lastName: text("last_name").notNull(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  nid: text("nid").notNull().unique(),
+  nid: text("nid").notNull().unique(), // National ID for KYC
   picture: text("picture"),
   phoneNumber: text("phone_number").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-// Subscribers table
+// Subscribers table - for notifications
 export const subscribers = pgTable("subscribers", {
   id: serial("id").primaryKey(),
   fullNames: text("full_names").notNull(),
@@ -100,7 +49,7 @@ export const subscribers = pgTable("subscribers", {
 // Documents table
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
-  uniqueId: text("unique_id").notNull().unique(),
+  uniqueId: text("unique_id").notNull().unique(), // For public reference
   title: text("title").notNull(),
   description: text("description").notNull(),
   category: text("category").notNull(),
@@ -117,7 +66,7 @@ export const documents = pgTable("documents", {
 // Devices table
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
-  uniqueId: text("unique_id").notNull().unique(),
+  uniqueId: text("unique_id").notNull().unique(), // For public reference
   category: text("category").notNull(),
   brandModel: text("brand_model").notNull(),
   serialNumber: text("serial_number"),
@@ -133,9 +82,20 @@ export const devices = pgTable("devices", {
   moderatedAt: timestamp("moderated_at"),
 });
 
-// Schemas for validation
+// Schema definitions
+export const insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true,
+  isAdmin: true,
+  roleId: true
+});
+
+export const insertRoleSchema = createInsertSchema(roles);
+
 export const insertAgentSchema = createInsertSchema(agents);
+
 export const insertSubscriberSchema = createInsertSchema(subscribers);
+
 export const insertDocumentSchema = createInsertSchema(documents)
   .pick({
     title: true,
@@ -164,6 +124,11 @@ export const insertDeviceSchema = createInsertSchema(devices)
     status: z.enum(["LOST", "FOUND", "REVIEW"]),
   });
 
+// Type exports
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
 export type Agent = typeof agents.$inferSelect;
 export type InsertAgent = z.infer<typeof insertAgentSchema>;
 export type Subscriber = typeof subscribers.$inferSelect;
