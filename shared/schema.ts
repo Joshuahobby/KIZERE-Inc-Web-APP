@@ -26,23 +26,69 @@ export const roles = pgTable("roles", {
 export const ItemStatus = z.enum(["LOST", "FOUND", "REVIEW"]);
 export type ItemStatus = z.infer<typeof ItemStatus>;
 
+// Helper function to validate dates
+const validateDate = (date: string) => {
+  const parsed = new Date(date);
+  return !isNaN(parsed.getTime());
+};
+
 // Document metadata validation schema
 export const DocumentMetadataSchema = z.object({
-  issuer: z.string().min(1, "Issuer is required"),
-  issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Issue date must be in YYYY-MM-DD format"),
-  expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expiry date must be in YYYY-MM-DD format").optional(),
-  documentNumber: z.string().min(1, "Document number is required"),
+  issuer: z.string()
+    .min(2, "Issuer name must be at least 2 characters")
+    .max(100, "Issuer name cannot exceed 100 characters"),
+  issueDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Issue date must be in YYYY-MM-DD format")
+    .refine(date => validateDate(date), "Invalid date format")
+    .refine(date => new Date(date) <= new Date(), "Issue date cannot be in the future"),
+  expiryDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Expiry date must be in YYYY-MM-DD format")
+    .refine(date => validateDate(date), "Invalid date format")
+    .refine((date, ctx) => {
+      const issueDate = ctx.parent.issueDate;
+      return new Date(date) > new Date(issueDate);
+    }, "Expiry date must be after issue date")
+    .optional(),
+  documentNumber: z.string()
+    .min(1, "Document number is required")
+    .refine((val, ctx) => {
+      // Different validation rules based on document type
+      switch (ctx.parent.type) {
+        case "PASSPORT":
+          return /^[A-Z]{2}\d{7}$/.test(val); // Example: AB1234567
+        case "ID_CARD":
+          return /^\d{9}$/.test(val); // Example: 123456789
+        case "DRIVING_LICENSE":
+          return /^[A-Z]\d{8}$/.test(val); // Example: D12345678
+        default:
+          return true;
+      }
+    }, "Invalid document number format"),
+  type: z.enum(["PASSPORT", "ID_CARD", "DRIVING_LICENSE", "OTHER"]),
   additionalDetails: z.record(z.string()).optional(),
 });
 
 // Device metadata validation schema
 export const DeviceMetadataSchema = z.object({
-  manufacturer: z.string().min(1, "Manufacturer is required"),
-  modelNumber: z.string().min(1, "Model number is required"),
-  color: z.string().min(1, "Color is required"),
-  purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Purchase date must be in YYYY-MM-DD format").optional(),
+  manufacturer: z.string()
+    .min(2, "Manufacturer name must be at least 2 characters")
+    .max(50, "Manufacturer name cannot exceed 50 characters"),
+  modelNumber: z.string()
+    .min(3, "Model number must be at least 3 characters")
+    .max(50, "Model number cannot exceed 50 characters")
+    .regex(/^[A-Za-z0-9\-_]+$/, "Model number can only contain letters, numbers, hyphens and underscores"),
+  color: z.string()
+    .min(2, "Color description must be at least 2 characters")
+    .max(30, "Color description cannot exceed 30 characters"),
+  purchaseDate: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Purchase date must be in YYYY-MM-DD format")
+    .refine(date => validateDate(date), "Invalid date format")
+    .refine(date => new Date(date) <= new Date(), "Purchase date cannot be in the future")
+    .optional(),
   specifications: z.record(z.string()).optional(),
-  identifyingMarks: z.string().optional(),
+  identifyingMarks: z.string()
+    .max(500, "Identifying marks description cannot exceed 500 characters")
+    .optional(),
 });
 
 // Documents table
@@ -117,6 +163,15 @@ export const insertDocumentSchema = createInsertSchema(documents)
     status: ItemStatus,
     category: DocumentCategory,
     metadata: DocumentMetadataSchema,
+    title: z.string()
+      .min(5, "Title must be at least 5 characters")
+      .max(100, "Title cannot exceed 100 characters"),
+    description: z.string()
+      .min(10, "Description must be at least 10 characters")
+      .max(1000, "Description cannot exceed 1000 characters"),
+    lastLocation: z.string()
+      .min(3, "Location must be at least 3 characters")
+      .max(200, "Location cannot exceed 200 characters"),
   });
 
 // Device specific enums
@@ -138,8 +193,24 @@ export const insertDeviceSchema = createInsertSchema(devices)
   .extend({
     status: ItemStatus,
     category: DeviceCategory,
-    serialNumber: z.string().min(1, "Serial number/IMEI is required"),
+    serialNumber: z.string()
+      .min(5, "Serial number/IMEI must be at least 5 characters")
+      .refine((val) => {
+        // IMEI validation (15 digits)
+        if (/^\d{15}$/.test(val)) return true;
+        // Serial number validation (alphanumeric, min 5 chars)
+        return /^[A-Za-z0-9\-_]{5,}$/.test(val);
+      }, "Invalid serial number/IMEI format"),
     metadata: DeviceMetadataSchema,
+    brandModel: z.string()
+      .min(3, "Brand & model must be at least 3 characters")
+      .max(100, "Brand & model cannot exceed 100 characters"),
+    description: z.string()
+      .min(10, "Description must be at least 10 characters")
+      .max(1000, "Description cannot exceed 1000 characters"),
+    lastLocation: z.string()
+      .min(3, "Location must be at least 3 characters")
+      .max(200, "Location cannot exceed 200 characters"),
   });
 
 // Type exports
