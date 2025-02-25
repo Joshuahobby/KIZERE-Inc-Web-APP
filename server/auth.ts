@@ -4,6 +4,7 @@ import { Express } from "express";
 import session from "express-session";
 import multer from "multer";
 import path from "path";
+import express from 'express'; //added import statement
 
 const diskStorage = multer.diskStorage({
   destination: "attached_assets",
@@ -51,6 +52,9 @@ export function setupAuth(app: Express) {
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
+
+  // Serve uploaded files statically
+  app.use("/uploads", express.static(path.join(process.cwd(), "attached_assets")));
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {

@@ -110,7 +110,7 @@ export default function ProfilePage() {
         description: "Your profile has been updated successfully.",
       });
       setIsEditing(false);
-      form.reset({ 
+      form.reset({
         username: form.getValues("username"),
         currentPassword: "",
         newPassword: "",
@@ -166,6 +166,7 @@ export default function ProfilePage() {
                         alt={user.username}
                         className="absolute inset-0 w-full h-full object-cover"
                         onError={(e) => {
+                          console.error('Failed to load profile picture:', user.profilePicture);
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}
                       />
@@ -259,7 +260,7 @@ export default function ProfilePage() {
 
                   <div className="flex items-center gap-4">
                     {!isEditing ? (
-                      <Button 
+                      <Button
                         type="button"
                         onClick={() => setIsEditing(true)}
                       >
@@ -268,7 +269,7 @@ export default function ProfilePage() {
                       </Button>
                     ) : (
                       <>
-                        <Button 
+                        <Button
                           type="submit"
                           disabled={updateProfileMutation.isPending}
                         >
