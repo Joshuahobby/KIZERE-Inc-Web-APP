@@ -60,9 +60,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full flex items-center justify-center p-2">
-                <Avatar className="h-8 w-8">
+                <Avatar className="h-8 w-8 overflow-hidden">
                   {user?.profilePicture ? (
-                    <img src={user.profilePicture} alt={user.username} className="h-full w-full object-cover" />
+                    <div className="w-full h-full relative">
+                      <img 
+                        src={user.profilePicture} 
+                        alt={user.username}
+                        className="absolute inset-0 w-full h-full object-cover rounded-full"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          (e.target as HTMLImageElement).parentElement!.style.display = 'none';
+                        }}
+                      />
+                    </div>
                   ) : (
                     <AvatarFallback>
                       {user?.username?.substring(0, 2).toUpperCase()}

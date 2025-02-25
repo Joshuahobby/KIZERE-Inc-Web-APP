@@ -68,7 +68,7 @@ export default function ProfilePage() {
       });
       if (!res.ok) throw new Error('Failed to upload image');
       const data = await res.json();
-      queryClient.invalidateQueries({ queryKey: ['user'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
       toast({
         title: 'Profile picture updated',
         description: 'Your profile picture has been updated successfully.',
@@ -104,6 +104,7 @@ export default function ProfilePage() {
       return res.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/user'] });
       toast({
         title: "Profile updated",
         description: "Your profile has been updated successfully.",
@@ -158,15 +159,22 @@ export default function ProfilePage() {
             <CardContent>
               <div className="mb-6">
                 <div className="flex items-center gap-4">
-                  <Avatar className="w-24 h-24">
+                  <div className="relative w-24 h-24 rounded-full overflow-hidden bg-muted">
                     {user?.profilePicture ? (
-                      <img src={user.profilePicture} alt={user.username} className="w-full h-full object-cover rounded-full" />
+                      <img
+                        src={user.profilePicture}
+                        alt={user.username}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
                     ) : (
-                      <AvatarFallback className="text-2xl">
+                      <div className="w-full h-full flex items-center justify-center text-2xl font-semibold">
                         {user?.username.substring(0, 2).toUpperCase()}
-                      </AvatarFallback>
+                      </div>
                     )}
-                  </Avatar>
+                  </div>
                   <div>
                     <Label htmlFor="picture" className="cursor-pointer">
                       <div className="inline-flex items-center justify-center h-10 px-4 py-2 text-sm font-medium transition-colors rounded-md focus-visible:outline-none focus-visible:ring-1 bg-primary text-primary-foreground hover:bg-primary/90">
