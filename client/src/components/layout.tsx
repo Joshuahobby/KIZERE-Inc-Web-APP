@@ -59,8 +59,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <div className="absolute bottom-4 w-52">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="w-full justify-start">
-                <Avatar className="h-6 w-6 mr-2">
+              <Button variant="ghost" className="w-full flex items-center justify-center p-2">
+                <Avatar className="h-8 w-8">
                   {user?.profilePicture ? (
                     <img src={user.profilePicture} alt={user.username} className="h-full w-full object-cover" />
                   ) : (
@@ -69,10 +69,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     </AvatarFallback>
                   )}
                 </Avatar>
-                {user?.username}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="w-52">
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem className="py-2">
+                <span className="text-sm font-medium">{user?.username}</span>
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <a href="/dashboard/profile">
                   <User className="mr-2 h-4 w-4" />
