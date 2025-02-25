@@ -1,7 +1,6 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Item } from "@shared/schema";
-import { ItemCard } from "@/components/item-card";
+import { Document, Device } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,31 +11,48 @@ import {
 import { Plus, Search, Loader2 } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { DocumentCard } from "@/components/document-card";
+import { DeviceCard } from "@/components/device-card";
 
 export default function HomePage() {
   const { user } = useAuth();
 
-  const { data: items, isLoading } = useQuery<Item[]>({
-    queryKey: ["/api/items"],
+  const { data: documents, isLoading: documentsLoading } = useQuery<Document[]>({
+    queryKey: ["/api/documents"],
+  });
+
+  const { data: devices, isLoading: devicesLoading } = useQuery<Device[]>({
+    queryKey: ["/api/devices"],
   });
 
   const statusMutation = useMutation({
-    mutationFn: async ({ id, status }: { id: number; status: Item["status"] }) => {
-      const res = await apiRequest("PATCH", `/api/items/${id}/status`, { status });
+    mutationFn: async ({ type, id, status }: { type: 'document' | 'device', id: number; status: 'LOST' | 'FOUND' | 'REVIEW' }) => {
+      const res = await apiRequest("PATCH", `${type === 'document' ? '/api/documents' : '/api/devices'}/${id}/status`, { status });
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/devices"] });
     },
   });
 
   // Calculate statistics
   const stats = {
-    total: items?.length || 0,
-    lost: items?.filter(i => i.status === "LOST").length || 0,
-    found: items?.filter(i => i.status === "FOUND").length || 0,
-    returned: items?.filter(i => i.status === "RETURNED").length || 0,
+    documents: {
+      total: documents?.length || 0,
+      lost: documents?.filter(d => d.status === "LOST").length || 0,
+      found: documents?.filter(d => d.status === "FOUND").length || 0,
+      review: documents?.filter(d => d.status === "REVIEW").length || 0,
+    },
+    devices: {
+      total: devices?.length || 0,
+      lost: devices?.filter(d => d.status === "LOST").length || 0,
+      found: devices?.filter(d => d.status === "FOUND").length || 0,
+      review: devices?.filter(d => d.status === "REVIEW").length || 0,
+    }
   };
+
+  const isLoading = documentsLoading || devicesLoading;
 
   return (
     <div className="p-8">
@@ -67,68 +83,117 @@ export default function HomePage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+            <CardTitle className="text-sm font-medium">Documents</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.total}</div>
+            <div className="space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-medium">{stats.documents.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Lost:</span>
+                <span className="font-medium text-red-600">{stats.documents.lost}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Found:</span>
+                <span className="font-medium text-green-600">{stats.documents.found}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Lost Items</CardTitle>
+            <CardTitle className="text-sm font-medium">Devices</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.lost}</div>
+            <div className="space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Total:</span>
+                <span className="font-medium">{stats.devices.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Lost:</span>
+                <span className="font-medium text-red-600">{stats.devices.lost}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Found:</span>
+                <span className="font-medium text-green-600">{stats.devices.found}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Found Items</CardTitle>
+            <CardTitle className="text-sm font-medium">Under Review</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.found}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Returned Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.returned}</div>
+            <div className="space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Documents:</span>
+                <span className="font-medium text-yellow-600">{stats.documents.review}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Devices:</span>
+                <span className="font-medium text-yellow-600">{stats.devices.review}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {isLoading ? (
-          <div className="col-span-full flex justify-center py-8">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      {isLoading ? (
+        <div className="flex justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (!documents?.length && !devices?.length) ? (
+        <div className="text-center py-8">
+          <h3 className="text-lg font-semibold mb-2">No Items Reported</h3>
+          <p className="text-muted-foreground mb-4">
+            Start by reporting a lost or found item
+          </p>
+          <Button asChild>
+            <Link to="/report">
+              <Plus className="mr-2 h-4 w-4" />
+              Report Item
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-8">
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Documents</h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {documents?.map((doc) => (
+                <DocumentCard
+                  key={doc.id}
+                  document={doc}
+                  onStatusChange={(status) =>
+                    statusMutation.mutate({ type: 'document', id: doc.id, status })
+                  }
+                />
+              ))}
+            </div>
           </div>
-        ) : items?.length === 0 ? (
-          <div className="col-span-full text-center py-8">
-            <h3 className="text-lg font-semibold mb-2">No Items Yet</h3>
-            <p className="text-muted-foreground mb-4">
-              Start by reporting a lost or found item
-            </p>
-            <Button asChild>
-              <Link to="/report">
-                <Plus className="mr-2 h-4 w-4" />
-                Report Item
-              </Link>
-            </Button>
+
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Devices</h2>
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {devices?.map((device) => (
+                <DeviceCard
+                  key={device.id}
+                  device={device}
+                  onStatusChange={(status) =>
+                    statusMutation.mutate({ type: 'device', id: device.id, status })
+                  }
+                />
+              ))}
+            </div>
           </div>
-        ) : (
-          items?.map((item) => (
-            <ItemCard
-              key={item.id}
-              item={item}
-              onStatusChange={(status) =>
-                statusMutation.mutate({ id: item.id, status })
-              }
-            />
-          ))
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertItemSchema } from "@shared/schema";
+import { insertDocumentSchema, insertDeviceSchema } from "@shared/schema";
 import { adminRouter } from "./routes/admin";
 import { setupWebSocket, notificationServer } from "./websocket";
 
@@ -12,80 +12,128 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount admin routes
   app.use("/api/admin", adminRouter);
 
-  app.get("/api/items", async (req, res) => {
+  // Documents routes
+  app.get("/api/documents", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     const query = req.query.q as string;
     if (query) {
-      const items = await storage.searchItems(query);
-      return res.json(items);
+      const documents = await storage.searchDocuments(query);
+      return res.json(documents);
     }
 
-    const items = await storage.getUserItems(req.user.id);
-    res.json(items);
+    const documents = await storage.getAllDocuments();
+    res.json(documents);
   });
 
-  app.post("/api/items", async (req, res) => {
+  app.post("/api/documents", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
-    const parsed = insertItemSchema.safeParse(req.body);
+    const parsed = insertDocumentSchema.safeParse(req.body);
     if (!parsed.success) {
       return res.status(400).json(parsed.error);
     }
 
-    const item = await storage.createItem({
-      ...parsed.data,
-      reportedBy: req.user.id,
-    });
-
-    // Log the activity
-    await storage.logActivity({
-      userId: req.user.id,
-      action: "ITEM_REPORT",
-      details: { itemId: item.id, status: item.status },
-    });
+    const document = await storage.createDocument(parsed.data, req.user.id);
 
     // Send notification to admins
     notificationServer.broadcastAdminNotification({
       type: "ADMIN_ALERT",
-      message: `New ${item.status.toLowerCase()} item reported: ${item.name}`,
-      data: { item },
+      message: `New ${document.status.toLowerCase()} document reported`,
+      data: { document },
     });
 
-    res.status(201).json(item);
+    res.status(201).json(document);
   });
 
-  app.patch("/api/items/:id/status", async (req, res) => {
+  app.patch("/api/documents/:id/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
     const id = parseInt(req.params.id);
-    const item = await storage.getItem(id);
+    const document = await storage.getDocument(id);
 
-    if (!item) {
-      return res.status(404).send("Item not found");
+    if (!document) {
+      return res.status(404).send("Document not found");
     }
 
-    if (item.reportedBy !== req.user.id) {
+    if (document.reportedBy !== req.user.id) {
       return res.status(403).send("Not authorized");
     }
 
-    const updatedItem = await storage.updateItemStatus(id, req.body.status);
-
-    // Log the activity
-    await storage.logActivity({
-      userId: req.user.id,
-      action: "ITEM_UPDATE",
-      details: { itemId: id, oldStatus: item.status, newStatus: updatedItem.status },
+    const updatedDocument = await storage.updateDocument(id, {
+      status: req.body.status
     });
 
-    // Send notification to the item owner
-    notificationServer.sendNotification(item.reportedBy, {
-      type: "ITEM_STATUS_CHANGE",
-      message: `Item "${item.name}" status changed to ${updatedItem.status}`,
-      data: { item: updatedItem },
+    // Send notification to the document owner
+    notificationServer.sendNotification(document.reportedBy, {
+      type: "DOCUMENT_STATUS_CHANGE",
+      message: `Document status changed to ${updatedDocument.status}`,
+      data: { document: updatedDocument },
     });
 
-    res.json(updatedItem);
+    res.json(updatedDocument);
+  });
+
+  // Devices routes
+  app.get("/api/devices", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const query = req.query.q as string;
+    if (query) {
+      const devices = await storage.searchDevices(query);
+      return res.json(devices);
+    }
+
+    const devices = await storage.getAllDevices();
+    res.json(devices);
+  });
+
+  app.post("/api/devices", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const parsed = insertDeviceSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json(parsed.error);
+    }
+
+    const device = await storage.createDevice(parsed.data, req.user.id);
+
+    // Send notification to admins
+    notificationServer.broadcastAdminNotification({
+      type: "ADMIN_ALERT",
+      message: `New ${device.status.toLowerCase()} device reported`,
+      data: { device },
+    });
+
+    res.status(201).json(device);
+  });
+
+  app.patch("/api/devices/:id/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const id = parseInt(req.params.id);
+    const device = await storage.getDevice(id);
+
+    if (!device) {
+      return res.status(404).send("Device not found");
+    }
+
+    if (device.reportedBy !== req.user.id) {
+      return res.status(403).send("Not authorized");
+    }
+
+    const updatedDevice = await storage.updateDevice(id, {
+      status: req.body.status
+    });
+
+    // Send notification to the device owner
+    notificationServer.sendNotification(device.reportedBy, {
+      type: "DEVICE_STATUS_CHANGE",
+      message: `Device status changed to ${updatedDevice.status}`,
+      data: { device: updatedDevice },
+    });
+
+    res.json(updatedDevice);
   });
 
   const httpServer = createServer(app);

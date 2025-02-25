@@ -10,29 +10,38 @@ router.use(requireAdmin);
 
 // Get system statistics
 router.get("/stats", async (req, res) => {
-  const users = await storage.getAllUsers();
-  const items = await storage.getAllItems();
+  try {
+    const users = await storage.getAllUsers();
+    const documents = await storage.getAllDocuments();
+    const devices = await storage.getAllDevices();
 
-  const stats = {
-    totalUsers: users.length,
-    totalItems: items.length,
-    itemsByStatus: {
-      LOST: items.filter(i => i.status === "LOST").length,
-      FOUND: items.filter(i => i.status === "FOUND").length,
-      CLAIMED: items.filter(i => i.status === "CLAIMED").length,
-      RETURNED: items.filter(i => i.status === "RETURNED").length,
-    },
-    itemsByCategory: {
-      DOCUMENTS: items.filter(i => i.category === "DOCUMENTS").length,
-      ELECTRONICS: items.filter(i => i.category === "ELECTRONICS").length,
-      CLOTHING: items.filter(i => i.category === "CLOTHING").length,
-      ACCESSORIES: items.filter(i => i.category === "ACCESSORIES").length,
-      OTHER: items.filter(i => i.category === "OTHER").length,
-    },
-    unmoderatedItems: items.filter(i => !i.moderated).length,
-  };
+    const stats = {
+      totalUsers: users.length,
+      documents: {
+        total: documents.length,
+        byStatus: {
+          LOST: documents.filter(d => d.status === "LOST").length,
+          FOUND: documents.filter(d => d.status === "FOUND").length,
+          REVIEW: documents.filter(d => d.status === "REVIEW").length,
+        },
+        unmoderated: documents.filter(d => !d.moderated).length,
+      },
+      devices: {
+        total: devices.length,
+        byStatus: {
+          LOST: devices.filter(d => d.status === "LOST").length,
+          FOUND: devices.filter(d => d.status === "FOUND").length,
+          REVIEW: devices.filter(d => d.status === "REVIEW").length,
+        },
+        unmoderated: devices.filter(d => !d.moderated).length,
+      }
+    };
 
-  res.json(stats);
+    res.json(stats);
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // Get all users
@@ -79,20 +88,54 @@ router.delete("/roles/:id", async (req, res) => {
   res.sendStatus(204);
 });
 
-// Get unmoderated items
+// Get unmoderated items (both documents and devices)
 router.get("/moderation", async (req, res) => {
-  const items = await storage.getUnmoderatedItems();
-  res.json(items);
+  try {
+    const [documents, devices] = await Promise.all([
+      storage.getUnmoderatedDocuments(),
+      storage.getUnmoderatedDevices()
+    ]);
+
+    res.json({
+      documents,
+      devices
+    });
+  } catch (error) {
+    console.error('Error getting unmoderated items:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
-// Moderate an item
-router.post("/moderation/:id", async (req, res) => {
+// Moderate a document
+router.post("/moderation/documents/:id", async (req, res) => {
   if (!req.user) {
     return res.status(401).json({ error: "Unauthorized" });
   }
-  const id = parseInt(req.params.id);
-  const item = await storage.moderateItem(id, req.user.id);
-  res.json(item);
+
+  try {
+    const id = parseInt(req.params.id);
+    const document = await storage.moderateDocument(id, req.user.id);
+    res.json(document);
+  } catch (error) {
+    console.error('Error moderating document:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Moderate a device
+router.post("/moderation/devices/:id", async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    const id = parseInt(req.params.id);
+    const device = await storage.moderateDevice(id, req.user.id);
+    res.json(device);
+  } catch (error) {
+    console.error('Error moderating device:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 export const adminRouter = router;
