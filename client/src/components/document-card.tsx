@@ -1,13 +1,13 @@
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
-import { Document } from "@shared/schema";
+import { Document, ItemStatus } from "@shared/schema";
 import { format } from "date-fns";
 import { FileText, MapPin, Clock } from "lucide-react";
 
 interface DocumentCardProps {
   document: Document;
-  onStatusChange?: (status: Document["status"]) => void;
+  onStatusChange?: (status: ItemStatus) => void;
 }
 
 export function DocumentCard({ document, onStatusChange }: DocumentCardProps) {
@@ -20,7 +20,7 @@ export function DocumentCard({ document, onStatusChange }: DocumentCardProps) {
             {document.uniqueId}
           </p>
         </div>
-        <StatusBadge status={document.status} />
+        <StatusBadge status={document.status as ItemStatus} />
       </CardHeader>
 
       <CardContent>

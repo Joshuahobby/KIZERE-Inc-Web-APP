@@ -66,7 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Send notification to the document owner
     notificationServer.sendNotification(document.reportedBy, {
-      type: "DOCUMENT_STATUS_CHANGE",
+      type: "ITEM_STATUS_CHANGE",
       message: `Document status changed to ${updatedDocument.status}`,
       data: { document: updatedDocument },
     });
@@ -128,7 +128,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     // Send notification to the device owner
     notificationServer.sendNotification(device.reportedBy, {
-      type: "DEVICE_STATUS_CHANGE",
+      type: "ITEM_STATUS_CHANGE",
       message: `Device status changed to ${updatedDevice.status}`,
       data: { device: updatedDevice },
     });

@@ -3,10 +3,11 @@ import { users, roles, agents, subscribers, documents, devices,
   type Agent, type InsertAgent, type Subscriber, type InsertSubscriber,
   type Document, type InsertDocument, type Device, type InsertDevice } from "@shared/schema";
 import { db } from "./db";
-import { eq, like, or, isNull } from "drizzle-orm";
+import { eq, like, or } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
+import { nanoid } from 'nanoid';
 
 const PostgresSessionStore = connectPg(session);
 
@@ -290,6 +291,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const [newDocument] = await db.insert(documents).values({
         ...document,
+        uniqueId: nanoid(10), 
         reportedBy: agentId,
         reportedAt: new Date(),
       }).returning();
@@ -387,6 +389,7 @@ export class DatabaseStorage implements IStorage {
     try {
       const [newDevice] = await db.insert(devices).values({
         ...device,
+        uniqueId: nanoid(10), 
         reportedBy: agentId,
         reportedAt: new Date(),
       }).returning();

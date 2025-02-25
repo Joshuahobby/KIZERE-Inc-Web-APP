@@ -1,14 +1,14 @@
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
-import { Device } from "@shared/schema";
+import { Device, ItemStatus } from "@shared/schema";
 import { format } from "date-fns";
 import { Smartphone, MapPin, Clock, Tag } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface DeviceCardProps {
   device: Device;
-  onStatusChange?: (status: Device["status"]) => void;
+  onStatusChange?: (status: ItemStatus) => void;
 }
 
 export function DeviceCard({ device, onStatusChange }: DeviceCardProps) {
@@ -21,7 +21,7 @@ export function DeviceCard({ device, onStatusChange }: DeviceCardProps) {
             {device.uniqueId}
           </p>
         </div>
-        <StatusBadge status={device.status} />
+        <StatusBadge status={device.status as ItemStatus} />
       </CardHeader>
 
       <CardContent>
