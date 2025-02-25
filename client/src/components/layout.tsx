@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useLocation } from "wouter";
 import { Home, Search, Plus, LogOut, User, Settings } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function NavLink({ href, children, isActive }: { href: string; children: React.ReactNode; isActive?: boolean }) {
   return (
@@ -59,7 +60,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="w-full justify-start">
-                <User className="mr-2 h-4 w-4" />
+                <Avatar className="h-6 w-6 mr-2">
+                  {user?.profilePicture ? (
+                    <img src={user.profilePicture} alt={user.username} className="h-full w-full object-cover" />
+                  ) : (
+                    <AvatarFallback>
+                      {user?.username?.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  )}
+                </Avatar>
                 {user?.username}
               </Button>
             </DropdownMenuTrigger>

@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, User } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   Card,
   CardContent,
@@ -26,6 +26,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 // Profile update schema
 const profileUpdateSchema = z.object({
@@ -66,7 +68,7 @@ export default function ProfilePage() {
       });
       if (!res.ok) throw new Error('Failed to upload image');
       const data = await res.json();
-      queryClient.invalidateQueries(['user']);
+      queryClient.invalidateQueries({ queryKey: ['user'] });
       toast({
         title: 'Profile picture updated',
         description: 'Your profile picture has been updated successfully.',
