@@ -1,6 +1,5 @@
-import { users, roles, agents, subscribers, documents, devices, 
+import { users, roles, documents, devices, 
   type User, type InsertUser, type Role, type InsertRole,
-  type Agent, type InsertAgent, type Subscriber, type InsertSubscriber,
   type Document, type InsertDocument, type Device, type InsertDevice } from "@shared/schema";
 import { db } from "./db";
 import { eq, like, or } from "drizzle-orm";
@@ -26,22 +25,8 @@ export interface IStorage {
   updateRole(id: number, updates: Partial<Role>): Promise<Role>;
   deleteRole(id: number): Promise<void>;
 
-  // Agent methods
-  createAgent(agent: InsertAgent): Promise<Agent>;
-  getAgent(id: number): Promise<Agent | undefined>;
-  getAgentByUsername(username: string): Promise<Agent | undefined>;
-  updateAgent(id: number, updates: Partial<Agent>): Promise<Agent>;
-  getAllAgents(): Promise<Agent[]>;
-
-  // Subscriber methods
-  createSubscriber(subscriber: InsertSubscriber): Promise<Subscriber>;
-  getSubscriber(id: number): Promise<Subscriber | undefined>;
-  getSubscriberByEmail(email: string): Promise<Subscriber | undefined>;
-  updateSubscriber(id: number, updates: Partial<Subscriber>): Promise<Subscriber>;
-  getAllSubscribers(): Promise<Subscriber[]>;
-
   // Document methods
-  createDocument(document: InsertDocument, agentId: number): Promise<Document>;
+  createDocument(document: InsertDocument, userId: number): Promise<Document>;
   getDocument(id: number): Promise<Document | undefined>;
   updateDocument(id: number, updates: Partial<Document>): Promise<Document>;
   getAllDocuments(): Promise<Document[]>;
@@ -50,7 +35,7 @@ export interface IStorage {
   searchDocuments(query: string): Promise<Document[]>;
 
   // Device methods
-  createDevice(device: InsertDevice, agentId: number): Promise<Device>;
+  createDevice(device: InsertDevice, userId: number): Promise<Device>;
   getDevice(id: number): Promise<Device | undefined>;
   updateDevice(id: number, updates: Partial<Device>): Promise<Device>;
   getAllDevices(): Promise<Device[]>;
@@ -178,121 +163,13 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Agent methods implementation
-  async createAgent(agent: InsertAgent): Promise<Agent> {
-    try {
-      const [newAgent] = await db.insert(agents).values(agent).returning();
-      return newAgent;
-    } catch (error) {
-      console.error('Error creating agent:', error);
-      throw error;
-    }
-  }
-
-  async getAgent(id: number): Promise<Agent | undefined> {
-    try {
-      const [agent] = await db.select().from(agents).where(eq(agents.id, id));
-      return agent;
-    } catch (error) {
-      console.error('Error getting agent:', error);
-      return undefined;
-    }
-  }
-
-  async getAgentByUsername(username: string): Promise<Agent | undefined> {
-    try {
-      const [agent] = await db.select().from(agents).where(eq(agents.username, username));
-      return agent;
-    } catch (error) {
-      console.error('Error getting agent by username:', error);
-      return undefined;
-    }
-  }
-
-  async updateAgent(id: number, updates: Partial<Agent>): Promise<Agent> {
-    try {
-      const [agent] = await db
-        .update(agents)
-        .set(updates)
-        .where(eq(agents.id, id))
-        .returning();
-      return agent;
-    } catch (error) {
-      console.error('Error updating agent:', error);
-      throw error;
-    }
-  }
-
-  async getAllAgents(): Promise<Agent[]> {
-    try {
-      return await db.select().from(agents);
-    } catch (error) {
-      console.error('Error getting all agents:', error);
-      throw error;
-    }
-  }
-
-  // Subscriber methods implementation
-  async createSubscriber(subscriber: InsertSubscriber): Promise<Subscriber> {
-    try {
-      const [newSubscriber] = await db.insert(subscribers).values(subscriber).returning();
-      return newSubscriber;
-    } catch (error) {
-      console.error('Error creating subscriber:', error);
-      throw error;
-    }
-  }
-
-  async getSubscriber(id: number): Promise<Subscriber | undefined> {
-    try {
-      const [subscriber] = await db.select().from(subscribers).where(eq(subscribers.id, id));
-      return subscriber;
-    } catch (error) {
-      console.error('Error getting subscriber:', error);
-      return undefined;
-    }
-  }
-
-  async getSubscriberByEmail(email: string): Promise<Subscriber | undefined> {
-    try {
-      const [subscriber] = await db.select().from(subscribers).where(eq(subscribers.email, email));
-      return subscriber;
-    } catch (error) {
-      console.error('Error getting subscriber by email:', error);
-      return undefined;
-    }
-  }
-
-  async updateSubscriber(id: number, updates: Partial<Subscriber>): Promise<Subscriber> {
-    try {
-      const [subscriber] = await db
-        .update(subscribers)
-        .set(updates)
-        .where(eq(subscribers.id, id))
-        .returning();
-      return subscriber;
-    } catch (error) {
-      console.error('Error updating subscriber:', error);
-      throw error;
-    }
-  }
-
-  async getAllSubscribers(): Promise<Subscriber[]> {
-    try {
-      return await db.select().from(subscribers);
-    } catch (error) {
-      console.error('Error getting all subscribers:', error);
-      throw error;
-    }
-  }
-
   // Document methods implementation
-  async createDocument(document: InsertDocument, agentId: number): Promise<Document> {
+  async createDocument(document: InsertDocument, userId: number): Promise<Document> {
     try {
       const [newDocument] = await db.insert(documents).values({
         ...document,
-        uniqueId: nanoid(10), 
-        reportedBy: agentId,
+        uniqueId: nanoid(10),
+        reportedBy: userId,
         reportedAt: new Date(),
       }).returning();
       return newDocument;
@@ -385,12 +262,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Device methods implementation
-  async createDevice(device: InsertDevice, agentId: number): Promise<Device> {
+  async createDevice(device: InsertDevice, userId: number): Promise<Device> {
     try {
       const [newDevice] = await db.insert(devices).values({
         ...device,
-        uniqueId: nanoid(10), 
-        reportedBy: agentId,
+        uniqueId: nanoid(10),
+        reportedBy: userId,
         reportedAt: new Date(),
       }).returning();
       return newDevice;
