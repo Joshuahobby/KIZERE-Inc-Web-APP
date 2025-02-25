@@ -74,6 +74,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(updatedDocument);
   });
 
+  // Documents search route
+  app.get("/api/documents/search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      console.log('Document search request:', query);
+
+      if (!query) {
+        return res.json([]);
+      }
+
+      const documents = await storage.searchDocuments(query);
+      res.json(documents);
+    } catch (error) {
+      console.error('Error in document search:', error);
+      res.status(500).json({ error: "Error searching documents" });
+    }
+  });
+
+
   // Devices routes
   app.get("/api/devices", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -134,6 +153,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
 
     res.json(updatedDevice);
+  });
+
+  // Devices search route
+  app.get("/api/devices/search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      console.log('Device search request:', query);
+
+      if (!query) {
+        return res.json([]);
+      }
+
+      const devices = await storage.searchDevices(query);
+      res.json(devices);
+    } catch (error) {
+      console.error('Error in device search:', error);
+      res.status(500).json({ error: "Error searching devices" });
+    }
   });
 
   const httpServer = createServer(app);

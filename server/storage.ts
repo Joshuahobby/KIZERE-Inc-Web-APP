@@ -246,18 +246,22 @@ export class DatabaseStorage implements IStorage {
     try {
       if (!query) return [];
 
+      console.log('Searching documents with query:', query);
+
       const results = await db.select()
         .from(documents)
         .where(
           and(
             or(
               eq(documents.uniqueId, query),
-              sql`${documents.metadata}->>'documentNumber' = ${query}`
+              // Use proper JSON operator and cast the value
+              sql`${documents.metadata}->>'documentNumber' = ${query}::text`
             ),
             eq(documents.moderated, true)
           )
         );
 
+      console.log('Document search results:', results);
       return results;
     } catch (error) {
       console.error('Error searching documents:', error);
@@ -348,6 +352,8 @@ export class DatabaseStorage implements IStorage {
     try {
       if (!query) return [];
 
+      console.log('Searching devices with query:', query);
+
       const results = await db.select()
         .from(devices)
         .where(
@@ -360,6 +366,7 @@ export class DatabaseStorage implements IStorage {
           )
         );
 
+      console.log('Device search results:', results);
       return results;
     } catch (error) {
       console.error('Error searching devices:', error);
