@@ -246,29 +246,17 @@ export class DatabaseStorage implements IStorage {
     try {
       if (!query) return [];
 
-      const results = await db.select({
-        id: documents.id,
-        uniqueId: documents.uniqueId,
-        title: documents.title,
-        category: documents.category,
-        status: documents.status,
-        description: documents.description,
-        lastLocation: documents.lastLocation,
-        metadata: documents.metadata,
-        ownerInfo: documents.ownerInfo,
-        reportedAt: documents.reportedAt,
-        moderated: documents.moderated,
-      })
-      .from(documents)
-      .where(
-        and(
-          or(
-            eq(documents.uniqueId, query),
-            sql`${documents.metadata}->>'documentNumber' = ${query}`
-          ),
-          eq(documents.moderated, true)
-        )
-      );
+      const results = await db.select()
+        .from(documents)
+        .where(
+          and(
+            or(
+              eq(documents.uniqueId, query),
+              sql`${documents.metadata}->>'documentNumber' = ${query}`
+            ),
+            eq(documents.moderated, true)
+          )
+        );
 
       return results;
     } catch (error) {
@@ -360,29 +348,17 @@ export class DatabaseStorage implements IStorage {
     try {
       if (!query) return [];
 
-      const results = await db.select({
-        id: devices.id,
-        uniqueId: devices.uniqueId,
-        category: devices.category,
-        brandModel: devices.brandModel,
-        serialNumber: devices.serialNumber,
-        description: devices.description,
-        lastLocation: devices.lastLocation,
-        metadata: devices.metadata,
-        ownerInfo: devices.ownerInfo,
-        reportedAt: devices.reportedAt,
-        moderated: devices.moderated,
-      })
-      .from(devices)
-      .where(
-        and(
-          or(
-            eq(devices.serialNumber, query),
-            eq(devices.uniqueId, query)
-          ),
-          eq(devices.moderated, true)
-        )
-      );
+      const results = await db.select()
+        .from(devices)
+        .where(
+          and(
+            or(
+              eq(devices.uniqueId, query),
+              eq(devices.serialNumber, query)
+            ),
+            eq(devices.moderated, true)
+          )
+        );
 
       return results;
     } catch (error) {
