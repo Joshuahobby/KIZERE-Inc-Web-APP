@@ -2,7 +2,7 @@ import { users, roles, documents, devices,
   type User, type InsertUser, type Role, type InsertRole,
   type Document, type InsertDocument, type Device, type InsertDevice } from "@shared/schema";
 import { db } from "./db";
-import { eq, like, or } from "drizzle-orm";
+import { eq, like, or, and, sql } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -245,16 +245,32 @@ export class DatabaseStorage implements IStorage {
   async searchDocuments(query: string): Promise<Document[]> {
     try {
       if (!query) return [];
-      return await db
-        .select()
-        .from(documents)
-        .where(
+
+      const results = await db.select({
+        id: documents.id,
+        uniqueId: documents.uniqueId,
+        title: documents.title,
+        category: documents.category,
+        status: documents.status,
+        description: documents.description,
+        lastLocation: documents.lastLocation,
+        metadata: documents.metadata,
+        ownerInfo: documents.ownerInfo,
+        reportedAt: documents.reportedAt,
+        moderated: documents.moderated,
+      })
+      .from(documents)
+      .where(
+        and(
           or(
-            like(documents.title, `%${query}%`),
-            like(documents.description, `%${query}%`),
-            like(documents.lastLocation, `%${query}%`)
-          )
-        );
+            eq(documents.uniqueId, query),
+            sql`${documents.metadata}->>'documentNumber' = ${query}`
+          ),
+          eq(documents.moderated, true)
+        )
+      );
+
+      return results;
     } catch (error) {
       console.error('Error searching documents:', error);
       throw error;
@@ -343,17 +359,32 @@ export class DatabaseStorage implements IStorage {
   async searchDevices(query: string): Promise<Device[]> {
     try {
       if (!query) return [];
-      return await db
-        .select()
-        .from(devices)
-        .where(
+
+      const results = await db.select({
+        id: devices.id,
+        uniqueId: devices.uniqueId,
+        category: devices.category,
+        brandModel: devices.brandModel,
+        serialNumber: devices.serialNumber,
+        description: devices.description,
+        lastLocation: devices.lastLocation,
+        metadata: devices.metadata,
+        ownerInfo: devices.ownerInfo,
+        reportedAt: devices.reportedAt,
+        moderated: devices.moderated,
+      })
+      .from(devices)
+      .where(
+        and(
           or(
-            like(devices.category, `%${query}%`),
-            like(devices.brandModel, `%${query}%`),
-            like(devices.description, `%${query}%`),
-            like(devices.lastLocation, `%${query}%`)
-          )
-        );
+            eq(devices.serialNumber, query),
+            eq(devices.uniqueId, query)
+          ),
+          eq(devices.moderated, true)
+        )
+      );
+
+      return results;
     } catch (error) {
       console.error('Error searching devices:', error);
       throw error;

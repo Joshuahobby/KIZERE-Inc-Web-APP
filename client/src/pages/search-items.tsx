@@ -91,19 +91,23 @@ export default function SearchItems() {
 
           <TabsContent value="documents">
             {query && (
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-6">
                 {documentsLoading ? (
-                  <div className="col-span-full text-center py-8">
+                  <div className="text-center py-8">
                     <span className="text-muted-foreground">Searching documents...</span>
                   </div>
                 ) : documents?.length === 0 ? (
-                  <div className="col-span-full text-center py-8">
+                  <div className="text-center py-8">
                     <p className="text-muted-foreground">No documents found matching your search.</p>
                     <p className="text-sm mt-2">Try searching with a different document number.</p>
                   </div>
                 ) : (
                   documents?.map((document) => (
-                    <DocumentCard key={document.id} document={document} />
+                    <DocumentCard 
+                      key={document.id} 
+                      document={document} 
+                      showDetails={true}
+                    />
                   ))
                 )}
               </div>
@@ -112,19 +116,23 @@ export default function SearchItems() {
 
           <TabsContent value="devices">
             {query && (
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid gap-6">
                 {devicesLoading ? (
-                  <div className="col-span-full text-center py-8">
+                  <div className="text-center py-8">
                     <span className="text-muted-foreground">Searching devices...</span>
                   </div>
                 ) : devices?.length === 0 ? (
-                  <div className="col-span-full text-center py-8">
+                  <div className="text-center py-8">
                     <p className="text-muted-foreground">No devices found matching your search.</p>
                     <p className="text-sm mt-2">Try searching with a different serial number.</p>
                   </div>
                 ) : (
                   devices?.map((device) => (
-                    <DeviceCard key={device.id} device={device} />
+                    <DeviceCard 
+                      key={device.id} 
+                      device={device} 
+                      showDetails={true}
+                    />
                   ))
                 )}
               </div>
