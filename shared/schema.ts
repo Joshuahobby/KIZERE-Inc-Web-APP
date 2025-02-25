@@ -107,15 +107,17 @@ export const documents = pgTable("documents", {
   moderated: boolean("moderated").notNull().default(false),
   moderatedBy: integer("moderated_by").references(() => users.id),
   moderatedAt: timestamp("moderated_at"),
+  qrCode: text("qr_code"), // New field for QR code data
+  qrCodeGeneratedAt: timestamp("qr_code_generated_at"),
 });
 
 // Devices table
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
-  uniqueId: text("unique_id").notNull().unique(), // For public reference
+  uniqueId: text("unique_id").notNull().unique(),
   category: text("category").notNull(),
   brandModel: text("brand_model").notNull(),
-  serialNumber: text("serial_number").notNull(), // Required
+  serialNumber: text("serial_number").notNull(),
   description: text("description").notNull(),
   picture: text("picture"),
   metadata: json("metadata").$type<z.infer<typeof DeviceMetadataSchema>>().notNull(),
@@ -127,6 +129,8 @@ export const devices = pgTable("devices", {
   moderated: boolean("moderated").notNull().default(false),
   moderatedBy: integer("moderated_by").references(() => users.id),
   moderatedAt: timestamp("moderated_at"),
+  qrCode: text("qr_code"), // New field for QR code data
+  qrCodeGeneratedAt: timestamp("qr_code_generated_at"),
 });
 
 // Schema definitions
@@ -195,7 +199,7 @@ export const insertDeviceSchema = createInsertSchema(devices)
     category: DeviceCategory,
     serialNumber: z.string()
       .min(5, "Serial number/IMEI must be at least 5 characters")
-      .refine((val) => {
+      .refine((val: string) => {
         // IMEI validation (15 digits)
         if (/^\d{15}$/.test(val)) return true;
         // Serial number validation (alphanumeric, min 5 chars)
