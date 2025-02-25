@@ -46,6 +46,10 @@ export const subscribers = pgTable("subscribers", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
+// Common status type
+export const ItemStatus = z.enum(["LOST", "FOUND", "REVIEW"]);
+export type ItemStatus = z.infer<typeof ItemStatus>;
+
 // Documents table
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
@@ -69,7 +73,7 @@ export const devices = pgTable("devices", {
   uniqueId: text("unique_id").notNull().unique(), // For public reference
   category: text("category").notNull(),
   brandModel: text("brand_model").notNull(),
-  serialNumber: text("serial_number"),
+  serialNumber: text("serial_number").notNull(), // Made required
   description: text("description").notNull(),
   picture: text("picture"),
   ownerInfo: json("owner_info").$type<Record<string, string>>(),
@@ -96,6 +100,10 @@ export const insertAgentSchema = createInsertSchema(agents);
 
 export const insertSubscriberSchema = createInsertSchema(subscribers);
 
+// Document specific enums
+export const DocumentCategory = z.enum(["ID", "CERTIFICATE", "LICENSE", "OTHER"]);
+export type DocumentCategory = z.infer<typeof DocumentCategory>;
+
 export const insertDocumentSchema = createInsertSchema(documents)
   .pick({
     title: true,
@@ -106,8 +114,13 @@ export const insertDocumentSchema = createInsertSchema(documents)
     ownerInfo: true,
   })
   .extend({
-    status: z.enum(["LOST", "FOUND", "REVIEW"]),
+    status: ItemStatus,
+    category: DocumentCategory,
   });
+
+// Device specific enums
+export const DeviceCategory = z.enum(["COMPUTER", "PHONE", "TABLET", "OTHER"]);
+export type DeviceCategory = z.infer<typeof DeviceCategory>;
 
 export const insertDeviceSchema = createInsertSchema(devices)
   .pick({
@@ -121,7 +134,9 @@ export const insertDeviceSchema = createInsertSchema(devices)
     status: true,
   })
   .extend({
-    status: z.enum(["LOST", "FOUND", "REVIEW"]),
+    status: ItemStatus,
+    category: DeviceCategory,
+    serialNumber: z.string().min(1, "Serial number/IMEI is required"),
   });
 
 // Type exports
