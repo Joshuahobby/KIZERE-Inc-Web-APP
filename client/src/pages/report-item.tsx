@@ -20,6 +20,12 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -46,6 +52,11 @@ export default function ReportItem() {
       status: "LOST",
       lastLocation: "",
       ownerInfo: {},
+      metadata: {
+        issuer: "",
+        issueDate: "",
+        documentNumber: "",
+      },
     },
   });
 
@@ -59,6 +70,11 @@ export default function ReportItem() {
       lastLocation: "",
       ownerInfo: {},
       serialNumber: "",
+      metadata: {
+        manufacturer: "",
+        modelNumber: "",
+        color: "",
+      },
     },
   });
 
@@ -179,6 +195,71 @@ export default function ReportItem() {
                 />
               </div>
 
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Document Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={documentForm.control}
+                    name="metadata.issuer"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Issuing Authority</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., Department of Motor Vehicles" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={documentForm.control}
+                      name="metadata.issueDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Issue Date</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="date" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={documentForm.control}
+                      name="metadata.expiryDate"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Expiry Date (Optional)</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="date" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={documentForm.control}
+                    name="metadata.documentNumber"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Document Number</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+
               <FormField
                 control={documentForm.control}
                 name="lastLocation"
@@ -291,17 +372,96 @@ export default function ReportItem() {
                 )}
               />
 
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Device Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <FormField
+                    control={deviceForm.control}
+                    name="metadata.manufacturer"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Manufacturer</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="e.g., Apple, Samsung, etc." />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <FormField
+                      control={deviceForm.control}
+                      name="metadata.modelNumber"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Model Number</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={deviceForm.control}
+                      name="metadata.color"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Color</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={deviceForm.control}
+                    name="metadata.purchaseDate"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Purchase Date (Optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} type="date" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={deviceForm.control}
+                    name="metadata.identifyingMarks"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Identifying Marks (Optional)</FormLabel>
+                        <FormControl>
+                          <Textarea {...field} placeholder="Any stickers, scratches, or unique markings" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </CardContent>
+              </Card>
+
               <FormField
                 control={deviceForm.control}
                 name="serialNumber"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Serial Number</FormLabel>
+                    <FormLabel>Serial Number/IMEI</FormLabel>
                     <FormControl>
                       <Input {...field} />
                     </FormControl>
                     <FormDescription>
-                      Optional - helps verify ownership
+                      Required - This helps verify device ownership
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

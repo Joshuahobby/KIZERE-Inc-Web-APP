@@ -26,6 +26,25 @@ export const roles = pgTable("roles", {
 export const ItemStatus = z.enum(["LOST", "FOUND", "REVIEW"]);
 export type ItemStatus = z.infer<typeof ItemStatus>;
 
+// Document metadata validation schema
+export const DocumentMetadataSchema = z.object({
+  issuer: z.string().min(1, "Issuer is required"),
+  issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Issue date must be in YYYY-MM-DD format"),
+  expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expiry date must be in YYYY-MM-DD format").optional(),
+  documentNumber: z.string().min(1, "Document number is required"),
+  additionalDetails: z.record(z.string()).optional(),
+});
+
+// Device metadata validation schema
+export const DeviceMetadataSchema = z.object({
+  manufacturer: z.string().min(1, "Manufacturer is required"),
+  modelNumber: z.string().min(1, "Model number is required"),
+  color: z.string().min(1, "Color is required"),
+  purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Purchase date must be in YYYY-MM-DD format").optional(),
+  specifications: z.record(z.string()).optional(),
+  identifyingMarks: z.string().optional(),
+});
+
 // Documents table
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
@@ -35,6 +54,7 @@ export const documents = pgTable("documents", {
   category: text("category").notNull(),
   status: text("status").notNull(),
   lastLocation: text("last_location").notNull(),
+  metadata: json("metadata").$type<z.infer<typeof DocumentMetadataSchema>>().notNull(),
   ownerInfo: json("owner_info").$type<Record<string, string>>(),
   reportedBy: integer("reported_by").references(() => users.id),
   reportedAt: timestamp("reported_at").notNull().defaultNow(),
@@ -52,6 +72,7 @@ export const devices = pgTable("devices", {
   serialNumber: text("serial_number").notNull(), // Required
   description: text("description").notNull(),
   picture: text("picture"),
+  metadata: json("metadata").$type<z.infer<typeof DeviceMetadataSchema>>().notNull(),
   ownerInfo: json("owner_info").$type<Record<string, string>>(),
   lastLocation: text("last_location").notNull(),
   status: text("status").notNull(),
@@ -89,11 +110,13 @@ export const insertDocumentSchema = createInsertSchema(documents)
     category: true,
     status: true,
     lastLocation: true,
+    metadata: true,
     ownerInfo: true,
   })
   .extend({
     status: ItemStatus,
     category: DocumentCategory,
+    metadata: DocumentMetadataSchema,
   });
 
 // Device specific enums
@@ -107,6 +130,7 @@ export const insertDeviceSchema = createInsertSchema(devices)
     serialNumber: true,
     description: true,
     picture: true,
+    metadata: true,
     ownerInfo: true,
     lastLocation: true,
     status: true,
@@ -115,6 +139,7 @@ export const insertDeviceSchema = createInsertSchema(devices)
     status: ItemStatus,
     category: DeviceCategory,
     serialNumber: z.string().min(1, "Serial number/IMEI is required"),
+    metadata: DeviceMetadataSchema,
   });
 
 // Type exports
