@@ -4,16 +4,8 @@ import { Express } from "express";
 import session from "express-session";
 import multer from "multer";
 import path from "path";
-import express from 'express'; //added import statement
-
-const diskStorage = multer.diskStorage({
-  destination: "attached_assets",
-  filename: (_req, file, cb) => {
-    cb(null, `image_${Date.now()}${path.extname(file.originalname)}`);
-  },
-});
-
-const upload = multer({ storage: diskStorage });
+import express from 'express';
+import fs from 'fs';
 import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
@@ -24,6 +16,34 @@ declare global {
     interface User extends SelectUser {}
   }
 }
+
+// Ensure upload directory exists
+const uploadDir = path.join(process.cwd(), "attached_assets");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const diskStorage = multer.diskStorage({
+  destination: uploadDir,
+  filename: (_req, file, cb) => {
+    cb(null, `image_${Date.now()}${path.extname(file.originalname)}`);
+  },
+});
+
+const upload = multer({ 
+  storage: diskStorage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (_req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type'));
+    }
+  }
+});
 
 const scryptAsync = promisify(scrypt);
 
@@ -54,7 +74,7 @@ export function setupAuth(app: Express) {
   app.use(passport.session());
 
   // Serve uploaded files statically
-  app.use("/uploads", express.static(path.join(process.cwd(), "attached_assets")));
+  app.use("/uploads", express.static(uploadDir));
 
   passport.use(
     new LocalStrategy(async (username, password, done) => {
@@ -84,18 +104,23 @@ export function setupAuth(app: Express) {
   app.post("/api/register", async (req, res, next) => {
     const existingUser = await storage.getUserByUsername(req.body.username);
     if (existingUser) {
-      return res.status(400).send("Username already exists");
+      return res.status(400).json({ error: "Username already exists" });
     }
 
-    const user = await storage.createUser({
-      ...req.body,
-      password: await hashPassword(req.body.password),
-    });
+    try {
+      const user = await storage.createUser({
+        ...req.body,
+        password: await hashPassword(req.body.password),
+      });
 
-    req.login(user, (err) => {
-      if (err) return next(err);
-      res.status(201).json(user);
-    });
+      req.login(user, (err) => {
+        if (err) return next(err);
+        res.status(201).json(user);
+      });
+    } catch (error) {
+      console.error('Error during registration:', error);
+      res.status(500).json({ error: "Failed to register user" });
+    }
   });
 
   app.post("/api/login", passport.authenticate("local"), (req, res) => {
@@ -124,36 +149,37 @@ export function setupAuth(app: Express) {
       });
       res.json(user);
     } catch (error) {
+      console.error('Error updating profile picture:', error);
       res.status(500).json({ error: "Failed to update profile picture" });
     }
   });
 
-  // New route for updating user profile
   app.patch("/api/user/profile", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
-    const { username, currentPassword, newPassword } = req.body;
-    const user = await storage.getUser(req.user.id);
-
-    if (!user) {
-      return res.status(404).json({ error: "User not found" });
-    }
-
-    // Verify current password
-    if (!(await comparePasswords(currentPassword, user.password))) {
-      return res.status(400).json({ error: "Current password is incorrect" });
-    }
-
-    // Update user data
-    const updates: Partial<SelectUser> = { username };
-    if (newPassword) {
-      updates.password = await hashPassword(newPassword);
-    }
-
     try {
+      const { username, currentPassword, newPassword } = req.body;
+      const user = await storage.getUser(req.user.id);
+
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Verify current password
+      if (!(await comparePasswords(currentPassword, user.password))) {
+        return res.status(400).json({ error: "Current password is incorrect" });
+      }
+
+      // Update user data
+      const updates: Partial<SelectUser> = { username };
+      if (newPassword) {
+        updates.password = await hashPassword(newPassword);
+      }
+
       const updatedUser = await storage.updateUser(user.id, updates);
       res.json(updatedUser);
     } catch (error) {
+      console.error('Error updating profile:', error);
       res.status(500).json({ error: "Failed to update profile" });
     }
   });
