@@ -1,4 +1,3 @@
-
 import { pgTable, text, serial, timestamp, boolean, json, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -14,17 +13,6 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull().defaultNow()
 });
 
-export const insertUserSchema = createInsertSchema(users)
-  .pick({
-    username: true,
-    password: true,
-    isAdmin: true,
-    roleId: true
-  });
-
-export type User = typeof users.$inferSelect;
-export type InsertUser = z.infer<typeof insertUserSchema>;
-
 // Role definition table
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
@@ -33,6 +21,57 @@ export const roles = pgTable("roles", {
   permissions: json("permissions").$type<string[]>().notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
+
+// Items table
+export const items = pgTable("items", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  category: text("category").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull(),
+  location: text("location").notNull(),
+  images: json("images").$type<string[]>(),
+  metadata: json("metadata").$type<Record<string, unknown>>(),
+  reportedBy: integer("reported_by").references(() => users.id),
+  reportedAt: timestamp("reported_at").notNull().defaultNow(),
+  moderated: boolean("moderated").notNull().default(false),
+  moderatedBy: integer("moderated_by").references(() => users.id),
+  moderatedAt: timestamp("moderated_at"),
+});
+
+// Schema definitions
+export const insertUserSchema = createInsertSchema(users).pick({
+  username: true,
+  password: true,
+  isAdmin: true,
+  roleId: true
+});
+
+export const insertRoleSchema = createInsertSchema(roles);
+
+export const insertItemSchema = createInsertSchema(items)
+  .pick({
+    name: true,
+    category: true,
+    description: true,
+    status: true,
+    location: true,
+    images: true,
+    metadata: true,
+  })
+  .extend({
+    status: z.enum(["LOST", "FOUND", "CLAIMED", "RETURNED"]),
+    category: z.enum(["DOCUMENTS", "ELECTRONICS", "CLOTHING", "ACCESSORIES", "OTHER"]),
+  });
+
+// Type exports
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+export type Item = typeof items.$inferSelect;
+export type InsertItem = z.infer<typeof insertItemSchema>;
+
 
 // Agents table
 export const agents = pgTable("agents", {
@@ -96,7 +135,6 @@ export const devices = pgTable("devices", {
 
 // Schemas for validation
 export const insertAgentSchema = createInsertSchema(agents);
-export const insertRoleSchema = createInsertSchema(roles);
 export const insertSubscriberSchema = createInsertSchema(subscribers);
 export const insertDocumentSchema = createInsertSchema(documents)
   .pick({
@@ -134,34 +172,3 @@ export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
-
-// Define the items table schema and validation
-export const items = pgTable("items", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  category: text("category").notNull(),
-  description: text("description").notNull(),
-  status: text("status").notNull(),
-  location: text("location").notNull(),
-  images: json("images").$type<string[]>(),
-  metadata: json("metadata").$type<Record<string, unknown>>(),
-  reportedBy: integer("reported_by").references(() => agents.id),
-  reportedAt: timestamp("reported_at").notNull().defaultNow(),
-});
-
-export const insertItemSchema = createInsertSchema(items)
-  .pick({
-    name: true,
-    category: true,
-    description: true,
-    status: true,
-    location: true,
-    images: true,
-    metadata: true,
-  })
-  .extend({
-    status: z.enum(["LOST", "FOUND", "REVIEW"]),
-  });
-
-export type Item = typeof items.$inferSelect;
-export type InsertItem = z.infer<typeof insertItemSchema>;

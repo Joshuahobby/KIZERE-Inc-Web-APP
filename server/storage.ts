@@ -1,6 +1,6 @@
-import { users, items, type User, type InsertUser, type Item, type InsertItem } from "@shared/schema";
+import { users, items, roles, type User, type InsertUser, type Item, type InsertItem, type Role, type InsertRole } from "@shared/schema";
 import { db } from "./db";
-import { eq, like, or } from "drizzle-orm";
+import { eq, like, or, isNull } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -22,6 +22,15 @@ export interface IStorage {
   createItem(item: InsertItem): Promise<Item>;
   updateItem(id: number, updates: Partial<Item>): Promise<Item>;
   searchItems(query: string): Promise<Item[]>;
+  getUnmoderatedItems(): Promise<Item[]>;
+  moderateItem(id: number, moderatorId: number): Promise<Item>;
+
+  // Role methods
+  createRole(role: InsertRole): Promise<Role>;
+  getRole(id: number): Promise<Role | undefined>;
+  getAllRoles(): Promise<Role[]>;
+  updateRole(id: number, updates: Partial<Role>): Promise<Role>;
+  deleteRole(id: number): Promise<void>;
 
   sessionStore: session.Store;
 }
@@ -36,7 +45,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  // User methods remain unchanged
+  // User methods
   async getUser(id: number): Promise<User | undefined> {
     try {
       const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -123,7 +132,10 @@ export class DatabaseStorage implements IStorage {
 
   async createItem(insertItem: InsertItem): Promise<Item> {
     try {
-      const [item] = await db.insert(items).values(insertItem).returning();
+      const [item] = await db.insert(items).values({
+        ...insertItem,
+        reportedAt: new Date(),
+      }).returning();
       return item;
     } catch (error) {
       console.error('Error creating item:', error);
@@ -160,6 +172,89 @@ export class DatabaseStorage implements IStorage {
         );
     } catch (error) {
       console.error('Error searching items:', error);
+      throw error;
+    }
+  }
+
+  async getUnmoderatedItems(): Promise<Item[]> {
+    try {
+      return await db
+        .select()
+        .from(items)
+        .where(eq(items.moderated, false));
+    } catch (error) {
+      console.error('Error getting unmoderated items:', error);
+      throw error;
+    }
+  }
+
+  async moderateItem(id: number, moderatorId: number): Promise<Item> {
+    try {
+      const [item] = await db
+        .update(items)
+        .set({
+          moderated: true,
+          moderatedBy: moderatorId,
+          moderatedAt: new Date(),
+        })
+        .where(eq(items.id, id))
+        .returning();
+      return item;
+    } catch (error) {
+      console.error('Error moderating item:', error);
+      throw error;
+    }
+  }
+
+  // Role methods
+  async createRole(role: InsertRole): Promise<Role> {
+    try {
+      const [newRole] = await db.insert(roles).values(role).returning();
+      return newRole;
+    } catch (error) {
+      console.error('Error creating role:', error);
+      throw error;
+    }
+  }
+
+  async getRole(id: number): Promise<Role | undefined> {
+    try {
+      const [role] = await db.select().from(roles).where(eq(roles.id, id));
+      return role;
+    } catch (error) {
+      console.error('Error getting role:', error);
+      return undefined;
+    }
+  }
+
+  async getAllRoles(): Promise<Role[]> {
+    try {
+      return await db.select().from(roles);
+    } catch (error) {
+      console.error('Error getting all roles:', error);
+      throw error;
+    }
+  }
+
+  async updateRole(id: number, updates: Partial<Role>): Promise<Role> {
+    try {
+      const [role] = await db
+        .update(roles)
+        .set(updates)
+        .where(eq(roles.id, id))
+        .returning();
+      return role;
+    } catch (error) {
+      console.error('Error updating role:', error);
+      throw error;
+    }
+  }
+
+  async deleteRole(id: number): Promise<void> {
+    try {
+      await db.delete(roles).where(eq(roles.id, id));
+    } catch (error) {
+      console.error('Error deleting role:', error);
       throw error;
     }
   }
