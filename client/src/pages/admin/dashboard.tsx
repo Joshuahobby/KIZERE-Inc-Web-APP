@@ -21,7 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, UserCheck, Users, AlertTriangle, Shield } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Role, User, Item } from "@shared/schema";
+import { Document, Device, Role, User } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -32,16 +32,26 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
+import { StatusBadge } from "@/components/status-badge";
 
 type AdminStats = {
   totalUsers: number;
-  totalItems: number;
-  unmoderatedItems: number;
-  itemsByCategory: Record<string, number>;
-  itemsByStatus: Record<string, number>;
+  documents: {
+    total: number;
+    byStatus: Record<string, number>;
+    unmoderated: number;
+  };
+  devices: {
+    total: number;
+    byStatus: Record<string, number>;
+    unmoderated: number;
+  };
 };
 
-type UnmoderatedItem = Pick<Item, 'id' | 'name' | 'category' | 'reportedBy' | 'status'>;
+type ModerationData = {
+  documents: Document[];
+  devices: Device[];
+};
 
 type NewRole = {
   name: string;
@@ -51,10 +61,10 @@ type NewRole = {
 
 export default function AdminDashboard() {
   const { toast } = useToast();
-  const [newRole, setNewRole] = useState<NewRole>({ 
-    name: "", 
-    description: "", 
-    permissions: [] 
+  const [newRole, setNewRole] = useState<NewRole>({
+    name: "",
+    description: "",
+    permissions: [],
   });
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -70,20 +80,36 @@ export default function AdminDashboard() {
     queryKey: ["/api/admin/roles"],
   });
 
-  const { data: unmoderatedItems = [], isLoading: moderationLoading } = useQuery<UnmoderatedItem[]>({
+  const { data: moderationData, isLoading: moderationLoading } = useQuery<ModerationData>({
     queryKey: ["/api/admin/moderation"],
   });
 
-  const moderateMutation = useMutation({
-    mutationFn: async (itemId: number) => {
-      const res = await apiRequest("POST", `/api/admin/moderation/${itemId}`);
+  const moderateDocumentMutation = useMutation({
+    mutationFn: async (documentId: number) => {
+      const res = await apiRequest("POST", `/api/admin/moderation/documents/${documentId}`);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/moderation"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
       toast({
-        title: "Item moderated",
-        description: "The item has been approved and is now visible to users.",
+        title: "Document moderated",
+        description: "The document has been approved and is now visible to users.",
+      });
+    },
+  });
+
+  const moderateDeviceMutation = useMutation({
+    mutationFn: async (deviceId: number) => {
+      const res = await apiRequest("POST", `/api/admin/moderation/devices/${deviceId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/moderation"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
+      toast({
+        title: "Device moderated",
+        description: "The device has been approved and is now visible to users.",
       });
     },
   });
@@ -172,18 +198,30 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
+            <CardTitle className="text-sm font-medium">Documents</CardTitle>
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.totalItems || 0}</div>
+            <div className="text-2xl font-bold">{stats?.documents.total || 0}</div>
             <div className="text-xs text-muted-foreground mt-1">
-              {stats?.unmoderatedItems || 0} pending moderation
+              {stats?.documents.unmoderated || 0} pending moderation
             </div>
           </CardContent>
         </Card>
 
-        {/* Role Statistics */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Devices</CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats?.devices.total || 0}</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {stats?.devices.unmoderated || 0} pending moderation
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">User Roles</CardTitle>
@@ -191,21 +229,6 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{roles?.length || 0}</div>
-          </CardContent>
-        </Card>
-
-        {/* Category Distribution */}
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">Items by Category</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {Object.entries(stats?.itemsByCategory || {}).map(([category, count]) => (
-              <div key={category} className="flex justify-between">
-                <span className="text-sm font-medium">{category}</span>
-                <span className="text-sm">{count}</span>
-              </div>
-            ))}
           </CardContent>
         </Card>
       </div>
@@ -216,9 +239,7 @@ export default function AdminDashboard() {
           <CardTitle>Role Management</CardTitle>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button size="sm">
-                Create New Role
-              </Button>
+              <Button size="sm">Create New Role</Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
@@ -241,10 +262,7 @@ export default function AdminDashboard() {
                     placeholder="Enter role description"
                   />
                 </div>
-                <Button 
-                  onClick={handleCreateRole}
-                  disabled={createRoleMutation.isPending}
-                >
+                <Button onClick={handleCreateRole} disabled={createRoleMutation.isPending}>
                   {createRoleMutation.isPending && (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   )}
@@ -270,15 +288,111 @@ export default function AdminDashboard() {
                   <TableCell className="font-medium">{role.name}</TableCell>
                   <TableCell>{role.description}</TableCell>
                   <TableCell>
-                    {(users || []).filter(user => user.roleId === role.id).length}
+                    {(users || []).filter((user) => user.roleId === role.id).length}
                   </TableCell>
-                  <TableCell>
-                    {format(new Date(role.createdAt), "PPp")}
-                  </TableCell>
+                  <TableCell>{format(new Date(role.createdAt), "PPp")}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      {/* Content Moderation */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Content Moderation</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {(!moderationData?.documents.length && !moderationData?.devices.length) ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No items pending moderation
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {/* Documents Moderation */}
+              {moderationData?.documents.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Documents</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {moderationData.documents.map((doc) => (
+                        <TableRow key={doc.id}>
+                          <TableCell className="font-medium">{doc.title}</TableCell>
+                          <TableCell>{doc.category}</TableCell>
+                          <TableCell>
+                            <StatusBadge status={doc.status as any} />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              onClick={() => moderateDocumentMutation.mutate(doc.id)}
+                              disabled={moderateDocumentMutation.isPending}
+                            >
+                              {moderateDocumentMutation.isPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              <UserCheck className="mr-2 h-4 w-4" />
+                              Approve
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {/* Devices Moderation */}
+              {moderationData?.devices.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Devices</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Brand & Model</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {moderationData.devices.map((device) => (
+                        <TableRow key={device.id}>
+                          <TableCell className="font-medium">{device.brandModel}</TableCell>
+                          <TableCell>{device.category}</TableCell>
+                          <TableCell>
+                            <StatusBadge status={device.status as any} />
+                          </TableCell>
+                          <TableCell>
+                            <Button
+                              size="sm"
+                              onClick={() => moderateDeviceMutation.mutate(device.id)}
+                              disabled={moderateDeviceMutation.isPending}
+                            >
+                              {moderateDeviceMutation.isPending && (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              )}
+                              <UserCheck className="mr-2 h-4 w-4" />
+                              Approve
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -302,9 +416,7 @@ export default function AdminDashboard() {
               {(users || []).map((user) => (
                 <TableRow key={user.id}>
                   <TableCell>{user.username}</TableCell>
-                  <TableCell>
-                    {format(new Date(user.createdAt), "PPp")}
-                  </TableCell>
+                  <TableCell>{format(new Date(user.createdAt), "PPp")}</TableCell>
                   <TableCell>
                     <Select
                       value={user.roleId?.toString() || ""}
@@ -355,55 +467,6 @@ export default function AdminDashboard() {
               ))}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-
-      {/* Content Moderation */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Content Moderation</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {unmoderatedItems.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              No items pending moderation
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Item Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Reported By</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {unmoderatedItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.category}</TableCell>
-                    <TableCell>{item.reportedBy}</TableCell>
-                    <TableCell>{item.status}</TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        onClick={() => moderateMutation.mutate(item.id)}
-                        disabled={moderateMutation.isPending}
-                      >
-                        {moderateMutation.isPending && (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        )}
-                        <UserCheck className="mr-2 h-4 w-4" />
-                        Approve
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
         </CardContent>
       </Card>
     </div>
