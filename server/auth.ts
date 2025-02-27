@@ -47,17 +47,22 @@ const upload = multer({
 
 const scryptAsync = promisify(scrypt);
 
-async function hashPassword(password: string) {
+async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
   return `${buf.toString("hex")}.${salt}`;
 }
 
-async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
+async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
+  try {
+    const [hashed, salt] = stored.split(".");
+    const hashedBuf = Buffer.from(hashed, "hex");
+    const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+    return timingSafeEqual(hashedBuf, suppliedBuf);
+  } catch (error) {
+    console.error('Error comparing passwords:', error);
+    return false;
+  }
 }
 
 export function setupAuth(app: Express) {
@@ -86,20 +91,23 @@ export function setupAuth(app: Express) {
   passport.use(
     new LocalStrategy(async (username, password, done) => {
       try {
-        console.log(`Attempting login for user: ${username}`);
+        console.log(`Login attempt for user: ${username}`);
         const user = await storage.getUserByUsername(username);
 
         if (!user) {
           console.log(`User not found: ${username}`);
-          return done(null, false);
+          return done(null, false, { message: "Invalid credentials" });
         }
 
         const isValidPassword = await comparePasswords(password, user.password);
-        console.log(`Password validation result: ${isValidPassword}`);
+        console.log(`Password validation result for ${username}:`, isValidPassword);
 
         if (!isValidPassword) {
-          return done(null, false);
+          console.log(`Invalid password for user: ${username}`);
+          return done(null, false, { message: "Invalid credentials" });
         }
+
+        console.log(`Successful login for user: ${username}`);
         return done(null, user);
       } catch (err) {
         console.error('Login error:', err);
@@ -115,12 +123,13 @@ export function setupAuth(app: Express) {
 
   passport.deserializeUser(async (id: number, done) => {
     try {
-      console.log(`Deserializing user: ${id}`);
+      console.log(`Deserializing user ID: ${id}`);
       const user = await storage.getUser(id);
       if (!user) {
         console.log(`User not found during deserialization: ${id}`);
         return done(null, false);
       }
+      console.log(`Successfully deserialized user: ${user.username}`);
       done(null, user);
     } catch (err) {
       console.error('Deserialization error:', err);
@@ -128,35 +137,57 @@ export function setupAuth(app: Express) {
     }
   });
 
-  // Routes
-  app.post("/api/register", async (req, res, next) => {
-    console.log('Registration attempt:', req.body.username);
-    const existingUser = await storage.getUserByUsername(req.body.username);
-    if (existingUser) {
-      console.log(`Registration failed: Username ${req.body.username} already exists`);
-      return res.status(400).json({ error: "Username already exists" });
-    }
-
+  // Registration endpoint
+  app.post("/api/register", async (req, res) => {
     try {
+      console.log('Registration attempt:', req.body.username);
+
+      // Validate required fields
+      if (!req.body.username || !req.body.password) {
+        return res.status(400).json({ error: "Username and password are required" });
+      }
+
+      const existingUser = await storage.getUserByUsername(req.body.username);
+      if (existingUser) {
+        console.log(`Registration failed: Username ${req.body.username} already exists`);
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
       const hashedPassword = await hashPassword(req.body.password);
+      console.log('Password hashed successfully');
+
       const user = await storage.createUser({
-        ...req.body,
+        username: req.body.username,
         password: hashedPassword,
+        isAdmin: false,
+        profilePicture: null,
+        roleId: 2 // Default user role
       });
 
       console.log(`User registered successfully: ${user.id}`);
+
+      // Log the user in automatically after registration
       req.login(user, (err) => {
-        if (err) return next(err);
+        if (err) {
+          console.error('Auto-login after registration failed:', err);
+          return res.status(500).json({ error: "Registration successful but login failed" });
+        }
         res.status(201).json(user);
       });
     } catch (error) {
-      console.error('Error during registration:', error);
+      console.error('Registration error:', error);
       res.status(500).json({ error: "Failed to register user" });
     }
   });
 
+  // Login endpoint
   app.post("/api/login", (req, res, next) => {
     console.log('Login attempt:', req.body.username);
+
+    if (!req.body.username || !req.body.password) {
+      return res.status(400).json({ error: "Username and password are required" });
+    }
+
     passport.authenticate("local", (err, user, info) => {
       if (err) {
         console.error('Login error:', err);
@@ -166,13 +197,19 @@ export function setupAuth(app: Express) {
         console.log('Login failed: Invalid credentials');
         return res.status(401).json({ error: "Invalid credentials" });
       }
-      req.logIn(user, (err) => {
+      req.login(user, (err) => {
         if (err) {
           console.error('Session error:', err);
           return next(err);
         }
         console.log(`Login successful: ${user.id}`);
-        res.json(user);
+        res.json({
+          id: user.id,
+          username: user.username,
+          isAdmin: user.isAdmin,
+          profilePicture: user.profilePicture,
+          roleId: user.roleId
+        });
       });
     })(req, res, next);
   });
