@@ -48,22 +48,36 @@ const upload = multer({
 const scryptAsync = promisify(scrypt);
 
 async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString('hex');
-  const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${derivedKey.toString('hex')}.${salt}`;
+  try {
+    const salt = randomBytes(16).toString('hex');
+    const derivedKey = (await scryptAsync(password, salt, 64)) as Buffer;
+    const hashedPassword = derivedKey.toString('hex');
+    console.log('Generated hash length:', hashedPassword.length);
+    return `${hashedPassword}.${salt}`;
+  } catch (error) {
+    console.error('Error hashing password:', error);
+    throw error;
+  }
 }
 
 async function comparePasswords(supplied: string, stored: string): Promise<boolean> {
   try {
-    const [hashedPassword, salt] = stored.split('.');
+    const [hashedPassword, salt] = stored.trim().split('.');
     if (!hashedPassword || !salt) {
       console.log('Invalid stored password format');
       return false;
     }
+
     const hashedSupplied = (await scryptAsync(supplied, salt, 64)) as Buffer;
     const storedBuffer = Buffer.from(hashedPassword, 'hex');
-    console.log('Password comparison result:', hashedSupplied.length === storedBuffer.length && timingSafeEqual(hashedSupplied, storedBuffer));
-    return hashedSupplied.length === storedBuffer.length && timingSafeEqual(hashedSupplied, storedBuffer);
+
+    console.log('Hash comparison:', {
+      suppliedLength: hashedSupplied.length,
+      storedLength: storedBuffer.length
+    });
+
+    return hashedSupplied.length === storedBuffer.length && 
+           timingSafeEqual(hashedSupplied, storedBuffer);
   } catch (error) {
     console.error('Error comparing passwords:', error);
     return false;
