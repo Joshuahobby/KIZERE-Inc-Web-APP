@@ -1,6 +1,6 @@
 import { 
   users, roles, documents, devices, systemMetrics, analytics, userActivityLog, apiUsage,
-  ipAllowlist, securityAuditLog, activeSessions,
+  ipAllowlist, securityAuditLog, activeSessions, registeredItems,
   type User, type InsertUser, type Role, type InsertRole,
   type Document, type InsertDocument, type Device, type InsertDevice,
   type SystemMetric, type InsertSystemMetric, type Analytic, type InsertAnalytic,
@@ -9,7 +9,7 @@ import {
   type RegisteredItem, type InsertRegisteredItem
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, sql, desc } from "drizzle-orm";
+import { eq, sql, desc, and, or } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -302,7 +302,6 @@ export class DatabaseStorage implements IStorage {
           and(
             or(
               eq(documents.uniqueId, query),
-              // Use proper JSON operator and cast the value
               sql`${documents.metadata}->>'documentNumber' = ${query}::text`
             ),
             eq(documents.moderated, true)

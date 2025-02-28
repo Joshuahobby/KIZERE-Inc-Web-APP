@@ -170,17 +170,6 @@ export const DeviceMetadataSchema = z.object({
 export const RegistrationStatus = z.enum(["ACTIVE", "EXPIRED", "SUSPENDED"]);
 export type RegistrationStatus = z.infer<typeof RegistrationStatus>;
 
-export const RegisteredItem = z.object({
-  officialId: z.string().min(1, "Official ID is required"),
-  registrationDate: z.string(),
-  expiryDate: z.string().optional(),
-  proofOfOwnership: z.string().optional(), // Document/receipt file path
-  pictures: z.array(z.string()), // Array of picture file paths
-  status: RegistrationStatus,
-});
-
-export type RegisteredItem = z.infer<typeof RegisteredItem>;
-
 // Create registered items table
 export const registeredItems = pgTable("registered_items", {
   id: serial("id").primaryKey(),
