@@ -31,16 +31,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Document creation route
   app.post("/api/documents", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
-    const parsed = insertDocumentSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json(parsed.error);
-    }
-
     try {
-      // Start ML processing timer
-      const startTime = Date.now();
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      console.log('Received document creation request:', req.body);
+
+      const parsed = insertDocumentSchema.safeParse(req.body);
+      if (!parsed.success) {
+        console.error('Document validation failed:', parsed.error);
+        return res.status(400).json({ error: parsed.error.errors });
+      }
+
+      // Generate unique ID first
+      const uniqueId = nanoid();
+      console.log('Generated uniqueId:', uniqueId);
 
       // Get ML categorization
       const { suggestedCategories, categoryFeatures } = await categorizeItem(
@@ -48,10 +52,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parsed.data.description
       );
 
+      console.log('ML Categorization results:', { suggestedCategories, categoryFeatures });
+
       // Create document with all required fields
-      const document = await storage.createDocument({
+      const documentData = {
         ...parsed.data,
-        uniqueId: nanoid(), // Generate unique ID
+        uniqueId,
         suggestedCategories,
         categoryFeatures,
         mlProcessedAt: new Date().toISOString(),
@@ -63,17 +69,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         moderatedAt: null,
         qrCode: null,
         qrCodeGeneratedAt: null
-      }, req.user.id);
+      };
 
-      // Record ML metrics
-      const mlMetrics = recordMLMetrics(startTime, suggestedCategories);
-      await storage.recordSystemMetric({
-        metricType: "ML_PROCESSING",
-        value: {
-          type: "ML_PROCESSING",
-          metrics: mlMetrics,
-        } as const,
-      });
+      console.log('Attempting to create document with data:', documentData);
+
+      const document = await storage.createDocument(documentData, req.user.id);
+      console.log('Document created successfully:', document);
 
       // Send notification to admins
       notificationServer.broadcastAdminNotification({
@@ -84,8 +85,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(document);
     } catch (error) {
-      console.error('Error processing document:', error);
-      res.status(500).json({ error: "Error processing document" });
+      console.error('Error in document creation:', error);
+      res.status(500).json({ 
+        error: "Error creating document",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
@@ -133,16 +137,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Device creation route
   app.post("/api/devices", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
-    const parsed = insertDeviceSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return res.status(400).json(parsed.error);
-    }
-
     try {
-      // Start ML processing timer
-      const startTime = Date.now();
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      console.log('Received device creation request:', req.body);
+
+      const parsed = insertDeviceSchema.safeParse(req.body);
+      if (!parsed.success) {
+        console.error('Device validation failed:', parsed.error);
+        return res.status(400).json({ error: parsed.error.errors });
+      }
+
+      // Generate unique ID first
+      const uniqueId = nanoid();
+      console.log('Generated uniqueId:', uniqueId);
 
       // Get ML categorization
       const { suggestedCategories, categoryFeatures } = await categorizeItem(
@@ -150,10 +158,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parsed.data.description
       );
 
+      console.log('ML Categorization results:', { suggestedCategories, categoryFeatures });
+
       // Create device with all required fields
-      const device = await storage.createDevice({
+      const deviceData = {
         ...parsed.data,
-        uniqueId: nanoid(), // Generate unique ID
+        uniqueId,
         suggestedCategories,
         categoryFeatures,
         mlProcessedAt: new Date().toISOString(),
@@ -165,17 +175,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         moderatedAt: null,
         qrCode: null,
         qrCodeGeneratedAt: null
-      }, req.user.id);
+      };
 
-      // Record ML metrics
-      const mlMetrics = recordMLMetrics(startTime, suggestedCategories);
-      await storage.recordSystemMetric({
-        metricType: "ML_PROCESSING",
-        value: {
-          type: "ML_PROCESSING",
-          metrics: mlMetrics,
-        } as const,
-      });
+      console.log('Attempting to create device with data:', deviceData);
+
+      const device = await storage.createDevice(deviceData, req.user.id);
+      console.log('Device created successfully:', device);
 
       // Send notification to admins
       notificationServer.broadcastAdminNotification({
@@ -186,8 +191,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.status(201).json(device);
     } catch (error) {
-      console.error('Error processing device:', error);
-      res.status(500).json({ error: "Error processing device" });
+      console.error('Error in device creation:', error);
+      res.status(500).json({ 
+        error: "Error creating device",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
