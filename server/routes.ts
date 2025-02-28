@@ -52,6 +52,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         suggestedCategories,
         categoryFeatures,
         mlProcessedAt: new Date().toISOString(),
+        socialShares: [],
+        lastSharedAt: null,
+        totalShares: 0
       }, req.user.id);
 
       // Record ML metrics
@@ -144,6 +147,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         suggestedCategories,
         categoryFeatures,
         mlProcessedAt: new Date().toISOString(),
+        socialShares: [],
+        lastSharedAt: null,
+        totalShares: 0
       }, req.user.id);
 
       // Record ML metrics
@@ -168,34 +174,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error('Error processing device:', error);
       res.status(500).json({ error: "Error processing device" });
     }
-  });
-
-  app.patch("/api/devices/:id/status", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
-    const id = parseInt(req.params.id);
-    const device = await storage.getDevice(id);
-
-    if (!device) {
-      return res.status(404).send("Device not found");
-    }
-
-    if (device.reportedBy !== req.user.id) {
-      return res.status(403).send("Not authorized");
-    }
-
-    const updatedDevice = await storage.updateDevice(id, {
-      status: req.body.status
-    });
-
-    // Send notification to the device owner
-    notificationServer.sendNotification(device.reportedBy, {
-      type: "ITEM_STATUS_CHANGE",
-      message: `Device status changed to ${updatedDevice.status}`,
-      data: { device: updatedDevice },
-    });
-
-    res.json(updatedDevice);
   });
 
   // Search routes
@@ -233,7 +211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Add to registerRoutes function after existing routes
+  // Social sharing routes
   app.post("/api/documents/:id/share", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -295,7 +273,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     res.json({ shareUrl: result.url });
   });
-
 
   const httpServer = createServer(app);
 
