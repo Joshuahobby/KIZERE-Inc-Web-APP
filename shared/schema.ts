@@ -2,6 +2,15 @@ import { pgTable, text, serial, timestamp, boolean, json, integer, jsonb, date }
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Add ML-based categorization types
+export const CategoryConfidence = z.object({
+  category: z.string(),
+  confidence: z.number().min(0).max(1),
+  features: z.record(z.number()).optional(),
+});
+
+export type CategoryConfidence = z.infer<typeof CategoryConfidence>;
+
 // Users table with enhanced security fields
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -145,7 +154,7 @@ export const DeviceMetadataSchema = z.object({
     .optional(),
 });
 
-// Documents table
+// Update documents table
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   uniqueId: text("unique_id").notNull().unique(), // For public reference
@@ -163,9 +172,12 @@ export const documents = pgTable("documents", {
   moderatedAt: timestamp("moderated_at"),
   qrCode: text("qr_code"), // New field for QR code data
   qrCodeGeneratedAt: timestamp("qr_code_generated_at"),
+  suggestedCategories: json("suggested_categories").$type<CategoryConfidence[]>(),
+  categoryFeatures: json("category_features").$type<Record<string, number>>(),
+  mlProcessedAt: timestamp("ml_processed_at"),
 });
 
-// Devices table
+// Update devices table
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
   uniqueId: text("unique_id").notNull().unique(),
@@ -185,6 +197,9 @@ export const devices = pgTable("devices", {
   moderatedAt: timestamp("moderated_at"),
   qrCode: text("qr_code"), // New field for QR code data
   qrCodeGeneratedAt: timestamp("qr_code_generated_at"),
+  suggestedCategories: json("suggested_categories").$type<CategoryConfidence[]>(),
+  categoryFeatures: json("category_features").$type<Record<string, number>>(),
+  mlProcessedAt: timestamp("ml_processed_at"),
 });
 
 // Add system metrics table
@@ -284,6 +299,8 @@ export const insertDocumentSchema = createInsertSchema(documents)
     lastLocation: true,
     metadata: true,
     ownerInfo: true,
+    suggestedCategories: true,
+    categoryFeatures: true,
   })
   .extend({
     status: ItemStatus,
@@ -298,6 +315,8 @@ export const insertDocumentSchema = createInsertSchema(documents)
     lastLocation: z.string()
       .min(3, "Location must be at least 3 characters")
       .max(200, "Location cannot exceed 200 characters"),
+    suggestedCategories: CategoryConfidence.array().optional(),
+    categoryFeatures: z.record(z.number()).optional(),
   });
 
 // Device specific enums
@@ -315,6 +334,8 @@ export const insertDeviceSchema = createInsertSchema(devices)
     ownerInfo: true,
     lastLocation: true,
     status: true,
+    suggestedCategories: true,
+    categoryFeatures: true,
   })
   .extend({
     status: ItemStatus,
@@ -337,6 +358,8 @@ export const insertDeviceSchema = createInsertSchema(devices)
     lastLocation: z.string()
       .min(3, "Location must be at least 3 characters")
       .max(200, "Location cannot exceed 200 characters"),
+    suggestedCategories: CategoryConfidence.array().optional(),
+    categoryFeatures: z.record(z.number()).optional(),
   });
 
 // Add schemas for the new tables
@@ -364,6 +387,40 @@ export const insertUserActivitySchema = createInsertSchema(userActivityLog).exte
 });
 
 export const insertApiUsageSchema = createInsertSchema(apiUsage);
+
+// Add ML processing metrics to system metrics
+export const MLProcessingMetric = z.object({
+  processingTime: z.number(),
+  accuracy: z.number(),
+  modelVersion: z.string(),
+  features: z.record(z.number()),
+});
+
+// Update systemMetrics value type
+export const SystemMetricValue = z.union([
+  z.object({
+    type: z.literal("PERFORMANCE"),
+    cpuUsage: z.number(),
+    memoryUsage: z.number(),
+    responseTime: z.number(),
+  }),
+  z.object({
+    type: z.literal("ML_PROCESSING"),
+    metrics: MLProcessingMetric,
+  }),
+]);
+
+export type SystemMetricValue = z.infer<typeof SystemMetricValue>;
+
+// Update systemMetrics table definition
+export const systemMetrics = pgTable("system_metrics", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  metricType: text("metric_type").notNull(),
+  value: jsonb("value").$type<SystemMetricValue>().notNull(),
+  details: text("details"),
+});
+
 
 // Type exports
 export type User = typeof users.$inferSelect;

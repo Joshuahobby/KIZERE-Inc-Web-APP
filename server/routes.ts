@@ -5,6 +5,7 @@ import { storage } from "./storage";
 import { insertDocumentSchema, insertDeviceSchema } from "@shared/schema";
 import { adminRouter } from "./routes/admin";
 import { setupWebSocket, notificationServer } from "./websocket";
+import { categorizeItem, recordMLMetrics } from "./services/categorization";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -34,16 +35,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json(parsed.error);
     }
 
-    const document = await storage.createDocument(parsed.data, req.user.id);
+    try {
+      // Start ML processing timer
+      const startTime = Date.now();
 
-    // Send notification to admins
-    notificationServer.broadcastAdminNotification({
-      type: "ADMIN_ALERT",
-      message: `New ${document.status.toLowerCase()} document reported`,
-      data: { document },
-    });
+      // Get ML categorization
+      const { suggestedCategories, categoryFeatures } = await categorizeItem(
+        parsed.data.title,
+        parsed.data.description
+      );
 
-    res.status(201).json(document);
+      // Create document with ML categorization data
+      const document = await storage.createDocument({
+        ...parsed.data,
+        suggestedCategories,
+        categoryFeatures,
+        mlProcessedAt: new Date(),
+      }, req.user.id);
+
+      // Record ML metrics
+      const mlMetrics = recordMLMetrics(startTime, suggestedCategories);
+      await storage.recordSystemMetric({
+        metricType: "ML_PROCESSING",
+        value: {
+          type: "ML_PROCESSING",
+          metrics: mlMetrics,
+        },
+      });
+
+      // Send notification to admins
+      notificationServer.broadcastAdminNotification({
+        type: "ADMIN_ALERT",
+        message: `New ${document.status.toLowerCase()} document reported`,
+        data: { document },
+      });
+
+      res.status(201).json(document);
+    } catch (error) {
+      console.error('Error processing document:', error);
+      res.status(500).json({ error: "Error processing document" });
+    }
   });
 
   app.patch("/api/documents/:id/status", async (req, res) => {
@@ -74,25 +105,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(updatedDocument);
   });
 
-  // Documents search route
-  app.get("/api/documents/search", async (req, res) => {
-    try {
-      const query = req.query.q as string;
-      console.log('Document search request:', query);
-
-      if (!query) {
-        return res.json([]);
-      }
-
-      const documents = await storage.searchDocuments(query);
-      res.json(documents);
-    } catch (error) {
-      console.error('Error in document search:', error);
-      res.status(500).json({ error: "Error searching documents" });
-    }
-  });
-
-
   // Devices routes
   app.get("/api/devices", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -115,16 +127,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(400).json(parsed.error);
     }
 
-    const device = await storage.createDevice(parsed.data, req.user.id);
+    try {
+      // Start ML processing timer
+      const startTime = Date.now();
 
-    // Send notification to admins
-    notificationServer.broadcastAdminNotification({
-      type: "ADMIN_ALERT",
-      message: `New ${device.status.toLowerCase()} device reported`,
-      data: { device },
-    });
+      // Get ML categorization
+      const { suggestedCategories, categoryFeatures } = await categorizeItem(
+        `${parsed.data.brandModel} ${parsed.data.serialNumber}`,
+        parsed.data.description
+      );
 
-    res.status(201).json(device);
+      // Create device with ML categorization data
+      const device = await storage.createDevice({
+        ...parsed.data,
+        suggestedCategories,
+        categoryFeatures,
+        mlProcessedAt: new Date(),
+      }, req.user.id);
+
+      // Record ML metrics
+      const mlMetrics = recordMLMetrics(startTime, suggestedCategories);
+      await storage.recordSystemMetric({
+        metricType: "ML_PROCESSING",
+        value: {
+          type: "ML_PROCESSING",
+          metrics: mlMetrics,
+        },
+      });
+
+      // Send notification to admins
+      notificationServer.broadcastAdminNotification({
+        type: "ADMIN_ALERT",
+        message: `New ${device.status.toLowerCase()} device reported`,
+        data: { device },
+      });
+
+      res.status(201).json(device);
+    } catch (error) {
+      console.error('Error processing device:', error);
+      res.status(500).json({ error: "Error processing device" });
+    }
   });
 
   app.patch("/api/devices/:id/status", async (req, res) => {
@@ -155,7 +197,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(updatedDevice);
   });
 
-  // Devices search route
+  // Search routes
+  app.get("/api/documents/search", async (req, res) => {
+    try {
+      const query = req.query.q as string;
+      console.log('Document search request:', query);
+
+      if (!query) {
+        return res.json([]);
+      }
+
+      const documents = await storage.searchDocuments(query);
+      res.json(documents);
+    } catch (error) {
+      console.error('Error in document search:', error);
+      res.status(500).json({ error: "Error searching documents" });
+    }
+  });
+
   app.get("/api/devices/search", async (req, res) => {
     try {
       const query = req.query.q as string;
