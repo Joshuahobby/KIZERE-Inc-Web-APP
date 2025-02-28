@@ -166,7 +166,59 @@ export const DeviceMetadataSchema = z.object({
     .optional(),
 });
 
-// Update documents table
+// Add registration-specific types
+export const RegistrationStatus = z.enum(["ACTIVE", "EXPIRED", "SUSPENDED"]);
+export type RegistrationStatus = z.infer<typeof RegistrationStatus>;
+
+export const RegisteredItem = z.object({
+  officialId: z.string().min(1, "Official ID is required"),
+  registrationDate: z.string(),
+  expiryDate: z.string().optional(),
+  proofOfOwnership: z.string().optional(), // Document/receipt file path
+  pictures: z.array(z.string()), // Array of picture file paths
+  status: RegistrationStatus,
+});
+
+export type RegisteredItem = z.infer<typeof RegisteredItem>;
+
+// Create registered items table
+export const registeredItems = pgTable("registered_items", {
+  id: serial("id").primaryKey(),
+  uniqueId: text("unique_id").notNull().unique(),
+  officialId: text("official_id").notNull(),
+  itemType: text("item_type").notNull(), // DOCUMENT or DEVICE
+  itemId: integer("item_id").notNull(), // References either documents or devices
+  ownerId: integer("owner_id").references(() => users.id),
+  registrationDate: timestamp("registration_date").notNull().defaultNow(),
+  expiryDate: timestamp("expiry_date"),
+  proofOfOwnership: text("proof_of_ownership"),
+  pictures: json("pictures").$type<string[]>().notNull(),
+  status: text("status").notNull().default("ACTIVE"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at"),
+});
+
+// Add insert schema for registered items
+export const insertRegisteredItemSchema = createInsertSchema(registeredItems)
+  .pick({
+    officialId: true,
+    itemType: true,
+    registrationDate: true,
+    expiryDate: true,
+    proofOfOwnership: true,
+    pictures: true,
+    metadata: true,
+  })
+  .extend({
+    officialId: z.string().min(1, "Official ID is required"),
+    itemType: z.enum(["DOCUMENT", "DEVICE"]),
+    pictures: z.array(z.string()).min(1, "At least one picture is required"),
+    metadata: z.record(z.unknown()).optional(),
+  });
+
+
+// Add registration-related fields to documents and devices tables
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
   uniqueId: text("unique_id").notNull().unique(), // For public reference
@@ -190,9 +242,10 @@ export const documents = pgTable("documents", {
   socialShares: json("social_shares").$type<ShareMetrics[]>(),
   lastSharedAt: timestamp("last_shared_at"),
   totalShares: integer("total_shares").notNull().default(0),
+  isRegistered: boolean("is_registered").notNull().default(false),
+  registeredItemId: integer("registered_item_id").references(() => registeredItems.id),
 });
 
-// Update devices table
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
   uniqueId: text("unique_id").notNull().unique(),
@@ -218,6 +271,8 @@ export const devices = pgTable("devices", {
   socialShares: json("social_shares").$type<ShareMetrics[]>(),
   lastSharedAt: timestamp("last_shared_at"),
   totalShares: integer("total_shares").notNull().default(0),
+  isRegistered: boolean("is_registered").notNull().default(false),
+  registeredItemId: integer("registered_item_id").references(() => registeredItems.id),
 });
 
 // Update the systemMetrics definition to fix the double declaration
@@ -462,3 +517,5 @@ export type IpAllowlist = typeof ipAllowlist.$inferSelect;
 export type InsertIpAllowlist = z.infer<typeof insertIpAllowlistSchema>;
 export type SecurityAuditLog = typeof securityAuditLog.$inferSelect;
 export type InsertSecurityAuditLog = z.infer<typeof insertSecurityAuditLogSchema>;
+export type RegisteredItem = typeof registeredItems.$inferSelect;
+export type InsertRegisteredItem = z.infer<typeof insertRegisteredItemSchema>;

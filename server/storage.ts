@@ -6,6 +6,7 @@ import {
   type SystemMetric, type InsertSystemMetric, type Analytic, type InsertAnalytic,
   type UserActivity, type InsertUserActivity, type ApiUsageMetric, type InsertApiUsageMetric,
   type IpAllowlist, type InsertIpAllowlist, type SecurityAuditLog, type InsertSecurityAuditLog,
+  type RegisteredItem, type InsertRegisteredItem
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc } from "drizzle-orm";
@@ -76,6 +77,13 @@ export interface IStorage {
   terminateSession(sessionId: string): Promise<void>;
 
   sessionStore: session.Store;
+
+  // Registered items methods
+  createRegisteredItem(item: InsertRegisteredItem, userId: number): Promise<RegisteredItem>;
+  getRegisteredItem(id: number): Promise<RegisteredItem | undefined>;
+  getRegisteredItemByOfficialId(officialId: string): Promise<RegisteredItem | undefined>;
+  getUserRegisteredItems(userId: number): Promise<RegisteredItem[]>;
+  updateRegisteredItem(id: number, updates: Partial<RegisteredItem>): Promise<RegisteredItem>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -623,6 +631,96 @@ export class DatabaseStorage implements IStorage {
       await db.delete(activeSessions).where(eq(activeSessions.sessionId, sessionId));
     } catch (error) {
       console.error('Error terminating session:', error);
+      throw error;
+    }
+  }
+
+  // Registered items implementation
+  async createRegisteredItem(item: InsertRegisteredItem, userId: number): Promise<RegisteredItem> {
+    try {
+      console.log('Creating registered item:', item);
+
+      const [registeredItem] = await db.insert(registeredItems).values({
+        ...item,
+        uniqueId: nanoid(10),
+        ownerId: userId,
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      }).returning();
+
+      // Update the corresponding document or device
+      if (item.itemType === 'DOCUMENT') {
+        await db.update(documents)
+          .set({ 
+            isRegistered: true,
+            registeredItemId: registeredItem.id 
+          })
+          .where(eq(documents.id, item.itemId));
+      } else {
+        await db.update(devices)
+          .set({ 
+            isRegistered: true,
+            registeredItemId: registeredItem.id 
+          })
+          .where(eq(devices.id, item.itemId));
+      }
+
+      console.log('Registered item created:', registeredItem);
+      return registeredItem;
+    } catch (error) {
+      console.error('Error creating registered item:', error);
+      throw error;
+    }
+  }
+
+  async getRegisteredItem(id: number): Promise<RegisteredItem | undefined> {
+    try {
+      const [item] = await db.select()
+        .from(registeredItems)
+        .where(eq(registeredItems.id, id));
+      return item;
+    } catch (error) {
+      console.error('Error getting registered item:', error);
+      return undefined;
+    }
+  }
+
+  async getRegisteredItemByOfficialId(officialId: string): Promise<RegisteredItem | undefined> {
+    try {
+      const [item] = await db.select()
+        .from(registeredItems)
+        .where(eq(registeredItems.officialId, officialId));
+      return item;
+    } catch (error) {
+      console.error('Error getting registered item by official ID:', error);
+      return undefined;
+    }
+  }
+
+  async getUserRegisteredItems(userId: number): Promise<RegisteredItem[]> {
+    try {
+      return await db.select()
+        .from(registeredItems)
+        .where(eq(registeredItems.ownerId, userId))
+        .orderBy(desc(registeredItems.createdAt));
+    } catch (error) {
+      console.error('Error getting user registered items:', error);
+      throw error;
+    }
+  }
+
+  async updateRegisteredItem(id: number, updates: Partial<RegisteredItem>): Promise<RegisteredItem> {
+    try {
+      const [item] = await db.update(registeredItems)
+        .set({
+          ...updates,
+          updatedAt: new Date(),
+        })
+        .where(eq(registeredItems.id, id))
+        .returning();
+      return item;
+    } catch (error) {
+      console.error('Error updating registered item:', error);
       throw error;
     }
   }

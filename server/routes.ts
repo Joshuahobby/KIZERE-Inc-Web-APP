@@ -297,6 +297,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ shareUrl: result.url });
   });
 
+  // Registration routes
+  app.post("/api/register-item", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      console.log('Received item registration request:', req.body);
+
+      const { itemType, officialId, pictures, proofOfOwnership, metadata } = req.body;
+
+      const registeredItem = await storage.createRegisteredItem({
+        itemType,
+        officialId,
+        pictures,
+        proofOfOwnership,
+        metadata,
+        registrationDate: new Date().toISOString(),
+      }, req.user.id);
+
+      console.log('Item registered successfully:', registeredItem);
+
+      res.status(201).json(registeredItem);
+    } catch (error) {
+      console.error('Error registering item:', error);
+      res.status(500).json({ 
+        error: "Error registering item",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  app.get("/api/registered-items", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      const items = await storage.getUserRegisteredItems(req.user.id);
+      res.json(items);
+    } catch (error) {
+      console.error('Error fetching registered items:', error);
+      res.status(500).json({ error: "Error fetching registered items" });
+    }
+  });
+
+  app.get("/api/registered-items/search", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+
+      const officialId = req.query.officialId as string;
+      if (!officialId) {
+        return res.status(400).json({ error: "Official ID is required" });
+      }
+
+      const item = await storage.getRegisteredItemByOfficialId(officialId);
+      res.json(item || null);
+    } catch (error) {
+      console.error('Error searching registered item:', error);
+      res.status(500).json({ error: "Error searching registered item" });
+    }
+  });
+
+
   const httpServer = createServer(app);
 
   // Setup WebSocket server
