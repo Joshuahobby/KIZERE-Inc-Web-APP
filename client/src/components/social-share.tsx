@@ -16,7 +16,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import { Share2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -48,14 +47,14 @@ export function ShareButtons({
         `/api/${itemType}s/${itemId}/share`,
         { platform, url }
       );
-      
+
       if (!response.ok) {
         throw new Error('Failed to share');
       }
 
       const { shareUrl } = await response.json();
       window.open(shareUrl, '_blank');
-      
+
       toast({
         title: 'Shared successfully',
         description: `Item shared on ${platform.toLowerCase()}`,
@@ -100,7 +99,7 @@ export function ShareButtons({
 
             <FacebookShareButton
               url={url}
-              quote={title}
+              title={title}
               onClick={() => handleShare('FACEBOOK')}
             >
               <FacebookIcon size={32} round />
