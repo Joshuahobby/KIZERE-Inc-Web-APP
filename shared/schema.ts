@@ -102,27 +102,27 @@ export const DocumentMetadataSchema = z.object({
     .max(100, "Issuer name cannot exceed 100 characters"),
   issueDate: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Issue date must be in YYYY-MM-DD format")
-    .refine(date => validateDate(date), "Invalid date format")
-    .refine(date => new Date(date) <= new Date(), "Issue date cannot be in the future"),
+    .refine((date: string) => validateDate(date), "Invalid date format")
+    .refine((date: string) => new Date(date) <= new Date(), "Issue date cannot be in the future"),
   expiryDate: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Expiry date must be in YYYY-MM-DD format")
-    .refine(date => validateDate(date), "Invalid date format")
-    .refine((date, ctx) => {
-      const issueDate = ctx.parent.issueDate;
+    .refine((date: string) => validateDate(date), "Invalid date format")
+    .refine((date: string, ctx: z.RefinementCtx) => {
+      const issueDate = (ctx.parent as any).issueDate;
       return new Date(date) > new Date(issueDate);
     }, "Expiry date must be after issue date")
     .optional(),
   documentNumber: z.string()
     .min(1, "Document number is required")
-    .refine((val, ctx) => {
-      // Different validation rules based on document type
-      switch (ctx.parent.type) {
+    .refine((val: string, ctx: z.RefinementCtx) => {
+      const type = (ctx.parent as any).type;
+      switch (type) {
         case "PASSPORT":
-          return /^[A-Z]{2}\d{7}$/.test(val); // Example: AB1234567
+          return /^[A-Z]{2}\d{7}$/.test(val);
         case "ID_CARD":
-          return /^\d{9}$/.test(val); // Example: 123456789
+          return /^\d{9}$/.test(val);
         case "DRIVING_LICENSE":
-          return /^[A-Z]\d{8}$/.test(val); // Example: D12345678
+          return /^[A-Z]\d{8}$/.test(val);
         default:
           return true;
       }
@@ -202,12 +202,12 @@ export const devices = pgTable("devices", {
   mlProcessedAt: timestamp("ml_processed_at"),
 });
 
-// Add system metrics table
+// Update the systemMetrics definition to fix the double declaration
 export const systemMetrics = pgTable("system_metrics", {
   id: serial("id").primaryKey(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
-  metricType: text("metric_type").notNull(), // API_CALL, ERROR, PERFORMANCE
-  value: jsonb("value").notNull(),
+  metricType: text("metric_type").notNull(),
+  value: jsonb("value").$type<SystemMetricValue>().notNull(),
   details: text("details"),
 });
 
@@ -412,15 +412,7 @@ export const SystemMetricValue = z.union([
 
 export type SystemMetricValue = z.infer<typeof SystemMetricValue>;
 
-// Update systemMetrics table definition
-export const systemMetrics = pgTable("system_metrics", {
-  id: serial("id").primaryKey(),
-  timestamp: timestamp("timestamp").notNull().defaultNow(),
-  metricType: text("metric_type").notNull(),
-  value: jsonb("value").$type<SystemMetricValue>().notNull(),
-  details: text("details"),
-});
-
+// Update systemMetrics table definition (This line is already included in the edited snippet)
 
 // Type exports
 export type User = typeof users.$inferSelect;

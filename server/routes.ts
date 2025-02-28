@@ -50,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...parsed.data,
         suggestedCategories,
         categoryFeatures,
-        mlProcessedAt: new Date(),
+        mlProcessedAt: new Date().toISOString(),
       }, req.user.id);
 
       // Record ML metrics
@@ -60,7 +60,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         value: {
           type: "ML_PROCESSING",
           metrics: mlMetrics,
-        },
+        } as const,
       });
 
       // Send notification to admins
@@ -142,7 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...parsed.data,
         suggestedCategories,
         categoryFeatures,
-        mlProcessedAt: new Date(),
+        mlProcessedAt: new Date().toISOString(),
       }, req.user.id);
 
       // Record ML metrics
@@ -152,7 +152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         value: {
           type: "ML_PROCESSING",
           metrics: mlMetrics,
-        },
+        } as const,
       });
 
       // Send notification to admins
