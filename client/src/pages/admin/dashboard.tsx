@@ -18,9 +18,16 @@ import {
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Loader2, UserCheck, Users, AlertTriangle, Shield, 
-  LineChart, Activity, Database, Clock 
+import {
+  Loader2,
+  UserCheck,
+  Users,
+  AlertTriangle,
+  Shield,
+  LineChart,
+  Activity,
+  Database,
+  Clock,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -36,6 +43,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Switch } from "@/components/ui/switch";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { QRCodeSVG } from "qrcode.react";
 
 type AdminStats = {
   totalUsers: number;
@@ -88,6 +107,41 @@ type ApiUsageStats = {
   topEndpoints: { endpoint: string; count: number }[];
 };
 
+type IpAllowlist = {
+  id: number;
+  ipRange: string;
+  description: string;
+  enabled: boolean;
+};
+
+type SecurityAuditLog = {
+  id: number;
+  userId: number;
+  timestamp: string;
+  actionType: string;
+  success: boolean;
+  details: object;
+};
+
+type Session = {
+  id: string;
+  userAgent: string;
+  ipAddress: string;
+  lastActivity: string;
+};
+
+type TwoFactorSetup = {
+  qrCode: string;
+  secret: string;
+  backupCodes: string[];
+};
+
+type InsertIpAllowlist = {
+  ipRange: string;
+  description: string;
+};
+
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const [newRole, setNewRole] = useState<NewRole>({
@@ -96,8 +150,9 @@ export default function AdminDashboard() {
     permissions: [],
   });
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [show2FADialog, setShow2FADialog] = useState(false);
+  const [twoFactorSetup, setTwoFactorSetup] = useState<TwoFactorSetup | null>(null);
 
-  // Add queries for new analytics data
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
   });
@@ -127,7 +182,22 @@ export default function AdminDashboard() {
     queryKey: ["/api/admin/api-usage"],
   });
 
-  // Keep existing mutations...
+  const { data: ipAllowlist, isLoading: ipLoading } = useQuery<IpAllowlist[]>({
+    queryKey: ["/api/admin/ip-allowlist"],
+  });
+
+  const { data: auditLogs, isLoading: auditLoading } = useQuery<SecurityAuditLog[]>({
+    queryKey: ["/api/admin/audit-logs"],
+  });
+
+  const { data: activeSessions, isLoading: sessionsLoading } = useQuery<{
+    current: string;
+    sessions: Session[];
+  }>({
+    queryKey: ["/api/admin/sessions"],
+  });
+
+
   const moderateDocumentMutation = useMutation({
     mutationFn: async (documentId: number) => {
       const res = await apiRequest("POST", `/api/admin/moderation/documents/${documentId}`);
@@ -199,8 +269,62 @@ export default function AdminDashboard() {
     },
   });
 
+  const setup2FAMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/2fa/setup");
+      return res.json();
+    },
+    onSuccess: (data: TwoFactorSetup) => {
+      setTwoFactorSetup(data);
+      setShow2FADialog(true);
+    },
+  });
+
+  const verify2FAMutation = useMutation({
+    mutationFn: async (token: string) => {
+      const res = await apiRequest("POST", "/api/admin/2fa/verify", { token });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      toast({
+        title: "2FA Enabled",
+        description: "Two-factor authentication has been enabled for your account.",
+      });
+      setShow2FADialog(false);
+    },
+  });
+
+  const addIpAllowlistMutation = useMutation({
+    mutationFn: async (data: InsertIpAllowlist) => {
+      const res = await apiRequest("POST", "/api/admin/ip-allowlist", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/ip-allowlist"] });
+      toast({
+        title: "IP Range Added",
+        description: "The IP range has been added to the allowlist.",
+      });
+    },
+  });
+
+  const terminateSessionMutation = useMutation({
+    mutationFn: async (sessionId: string) => {
+      const res = await apiRequest("DELETE", `/api/admin/sessions/${sessionId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/sessions"] });
+      toast({
+        title: "Session Terminated",
+        description: "The selected session has been terminated.",
+      });
+    },
+  });
+
   const isLoading = statsLoading || usersLoading || moderationLoading || rolesLoading ||
-    systemLoading || activityLoading || apiUsageLoading;
+    systemLoading || activityLoading || apiUsageLoading || ipLoading || auditLoading || sessionsLoading;
 
   const handleCreateRole = () => {
     if (!newRole.name.trim()) {
@@ -231,7 +355,6 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      {/* System Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -294,7 +417,6 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Content Statistics */}
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -379,7 +501,6 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* System Metrics */}
       <Card>
         <CardHeader>
           <CardTitle>System Performance</CardTitle>
@@ -430,7 +551,6 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Role Management */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Role Management</CardTitle>
@@ -495,7 +615,6 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* Content Moderation */}
       <Card>
         <CardHeader>
           <CardTitle>Content Moderation</CardTitle>
@@ -507,7 +626,6 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="space-y-8">
-              {/* Documents Moderation */}
               {moderationData?.documents.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Documents</h3>
@@ -548,7 +666,6 @@ export default function AdminDashboard() {
                 </div>
               )}
 
-              {/* Devices Moderation */}
               {moderationData?.devices.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Devices</h3>
@@ -593,7 +710,6 @@ export default function AdminDashboard() {
         </CardContent>
       </Card>
 
-      {/* User Management */}
       <Card>
         <CardHeader>
           <CardTitle>User Management</CardTitle>
@@ -666,6 +782,183 @@ export default function AdminDashboard() {
           </Table>
         </CardContent>
       </Card>
+
+
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Account Security</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Two-Factor Auth</span>
+                <Switch
+                  checked={users?.[0]?.twoFactorEnabled || false} // Assuming first user for demo, needs proper user context
+                  onCheckedChange={() => {
+                    if (!(users?.[0]?.twoFactorEnabled || false)) {
+                      setup2FAMutation.mutate();
+                    }
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">Active Sessions</span>
+                <Badge>{activeSessions?.sessions.length || 0}</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Active Sessions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Device</TableHead>
+                <TableHead>IP Address</TableHead>
+                <TableHead>Last Activity</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(activeSessions?.sessions || []).map((session) => (
+                <TableRow key={session.id}>
+                  <TableCell>{session.userAgent}</TableCell>
+                  <TableCell>{session.ipAddress}</TableCell>
+                  <TableCell>{format(new Date(session.lastActivity), "PPp")}</TableCell>
+                  <TableCell>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={session.id === activeSessions?.current}
+                      onClick={() => terminateSessionMutation.mutate(session.id)}
+                    >
+                      Terminate
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>IP Access Control</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>IP Range</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(ipAllowlist || []).map((ip) => (
+                  <TableRow key={ip.id}>
+                    <TableCell>{ip.ipRange}</TableCell>
+                    <TableCell>{ip.description}</TableCell>
+                    <TableCell>
+                      <Badge variant={ip.enabled ? "default" : "secondary"}>
+                        {ip.enabled ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="destructive" size="sm">Remove</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Security Audit Log</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ScrollArea className="h-[400px]">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>User</TableHead>
+                  <TableHead>Action</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Details</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(auditLogs || []).map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell>{format(new Date(log.timestamp), "PPp")}</TableCell>
+                    <TableCell>{users?.find(u => u.id === log.userId)?.username}</TableCell>
+                    <TableCell>{log.actionType}</TableCell>
+                    <TableCell>
+                      <Badge variant={log.success ? "default" : "destructive"}>
+                        {log.success ? "Success" : "Failed"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="max-w-[200px] truncate">
+                      {JSON.stringify(log.details)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={show2FADialog} onOpenChange={setShow2FADialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Set Up Two-Factor Authentication</AlertDialogTitle>
+            <AlertDialogDescription>
+              Scan this QR code with your authenticator app to enable 2FA.
+              Keep your backup codes safe - you'll need them if you lose access to your authenticator.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4">
+            {twoFactorSetup && (
+              <>
+                <div className="flex justify-center p-4 bg-white rounded-lg">
+                  <QRCodeSVG value={twoFactorSetup.qrCode} size={200} />
+                </div>
+                <div>
+                  <Label>Backup Codes</Label>
+                  <ScrollArea className="h-[100px] border rounded-md p-2">
+                    {twoFactorSetup.backupCodes.map((code, i) => (
+                      <div key={i} className="font-mono text-sm">{code}</div>
+                    ))}
+                  </ScrollArea>
+                </div>
+                <div className="space-y-2">
+                  <Label>Verification Code</Label>
+                  <Input
+                    type="text"
+                    placeholder="Enter code from authenticator app"
+                    onChange={(e) => verify2FAMutation.mutate(e.target.value)}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

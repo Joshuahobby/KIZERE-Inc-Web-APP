@@ -1,8 +1,8 @@
-import { pgTable, text, serial, timestamp, boolean, json, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, json, integer, jsonb, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Users table
+// Users table with enhanced security fields
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
@@ -10,16 +10,70 @@ export const users = pgTable("users", {
   profilePicture: text("profile_picture"),
   isAdmin: boolean("is_admin").notNull().default(false),
   roleId: integer("role_id").references(() => roles.id),
-  createdAt: timestamp("created_at").notNull().defaultNow()
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  // 2FA fields
+  twoFactorSecret: text("two_factor_secret"),
+  twoFactorEnabled: boolean("two_factor_enabled").notNull().default(false),
+  backupCodes: json("backup_codes").$type<string[]>(),
+  // Security fields
+  lastLogin: timestamp("last_login"),
+  failedLoginAttempts: integer("failed_login_attempts").notNull().default(0),
+  accountLocked: boolean("account_locked").notNull().default(false),
+  lockExpiresAt: timestamp("lock_expires_at"),
+  passwordChangedAt: timestamp("password_changed_at"),
+  forcePasswordChange: boolean("force_password_change").notNull().default(false),
 });
 
-// Role definition table
+// IP Allowlist for admin access
+export const ipAllowlist = pgTable("ip_allowlist", {
+  id: serial("id").primaryKey(),
+  ipRange: text("ip_range").notNull(),
+  description: text("description"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  createdBy: integer("created_by").references(() => users.id),
+});
+
+// Session management
+export const activeSessions = pgTable("active_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  sessionId: text("session_id").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  lastActivity: timestamp("last_activity").notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
+
+// Enhanced role permissions
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   description: text("description"),
-  permissions: json("permissions").$type<string[]>().notNull(),
+  permissions: json("permissions").$type<{
+    canViewUsers: boolean;
+    canManageUsers: boolean;
+    canViewRoles: boolean;
+    canManageRoles: boolean;
+    canViewAuditLogs: boolean;
+    canManageSettings: boolean;
+    canApproveItems: boolean;
+    canDeleteItems: boolean;
+    customPermissions: Record<string, boolean>;
+  }>().notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Security audit log
+export const securityAuditLog = pgTable("security_audit_log", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  userId: integer("user_id").references(() => users.id),
+  actionType: text("action_type").notNull(), // LOGIN, LOGOUT, PASSWORD_CHANGE, 2FA_ENABLE, etc.
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  details: jsonb("details"),
+  success: boolean("success").notNull(),
 });
 
 // Common status type
@@ -183,6 +237,15 @@ export const insertUserSchema = createInsertSchema(users)
     password: true,
     isAdmin: true,
     roleId: true,
+    twoFactorEnabled: true,
+  })
+  .extend({
+    password: z.string()
+      .min(8, "Password must be at least 8 characters")
+      .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+      .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+      .regex(/[0-9]/, "Password must contain at least one number")
+      .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
   });
 
 export const insertRoleSchema = createInsertSchema(roles)
@@ -190,6 +253,22 @@ export const insertRoleSchema = createInsertSchema(roles)
     name: true,
     description: true,
     permissions: true,
+  });
+
+export const insertIpAllowlistSchema = createInsertSchema(ipAllowlist)
+  .pick({
+    ipRange: true,
+    description: true,
+    enabled: true,
+  });
+
+export const insertSecurityAuditLogSchema = createInsertSchema(securityAuditLog)
+  .pick({
+    actionType: true,
+    ipAddress: true,
+    userAgent: true,
+    details: true,
+    success: true,
   });
 
 // Document specific enums
@@ -308,3 +387,8 @@ export type InsertUserActivity = z.infer<typeof insertUserActivitySchema>;
 
 export type ApiUsageMetric = typeof apiUsage.$inferSelect;
 export type InsertApiUsageMetric = z.infer<typeof insertApiUsageSchema>;
+
+export type IpAllowlist = typeof ipAllowlist.$inferSelect;
+export type InsertIpAllowlist = z.infer<typeof insertIpAllowlistSchema>;
+export type SecurityAuditLog = typeof securityAuditLog.$inferSelect;
+export type InsertSecurityAuditLog = z.infer<typeof insertSecurityAuditLogSchema>;

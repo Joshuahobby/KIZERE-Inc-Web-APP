@@ -1,7 +1,10 @@
 import { Router } from "express";
 import { storage } from "../storage";
 import { requireAdmin } from "../middleware/admin";
-import { insertRoleSchema } from "@shared/schema";
+import { insertRoleSchema, insertIpAllowlistSchema } from "@shared/schema";
+import { authenticator } from "otplib";
+import ipRangeCheck from "ip-range-check";
+import QRCode from "qrcode";
 
 const router = Router();
 
@@ -231,6 +234,175 @@ router.post("/moderation/devices/:id", async (req, res) => {
     res.json(device);
   } catch (error) {
     console.error('Error moderating device:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// 2FA setup
+router.post("/2fa/setup", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const secret = authenticator.generateSecret();
+    const otpAuthUrl = authenticator.keyuri(req.user.username, "KIZERE Admin", secret);
+    const qrCode = await QRCode.toDataURL(otpAuthUrl);
+    const backupCodes = Array.from({ length: 10 }, () => authenticator.generateSecret().slice(0, 8));
+
+    await storage.updateUser(req.user.id, {
+      twoFactorSecret: secret,
+      backupCodes: backupCodes,
+    });
+
+    await storage.logSecurityAudit({
+      userId: req.user.id,
+      actionType: "2FA_SETUP_INITIATED",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      success: true,
+      details: { timestamp: new Date() },
+    });
+
+    res.json({
+      qrCode,
+      secret,
+      backupCodes,
+    });
+  } catch (error) {
+    console.error('Error setting up 2FA:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// 2FA verification
+router.post("/2fa/verify", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const { token } = req.body;
+    const user = await storage.getUser(req.user.id);
+    if (!user?.twoFactorSecret) {
+      return res.status(400).json({ error: "2FA not set up" });
+    }
+
+    const isValid = authenticator.verify({
+      token,
+      secret: user.twoFactorSecret,
+    });
+
+    if (!isValid) {
+      await storage.logSecurityAudit({
+        userId: req.user.id,
+        actionType: "2FA_VERIFY_FAILED",
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        success: false,
+        details: { timestamp: new Date() },
+      });
+      return res.status(401).json({ error: "Invalid token" });
+    }
+
+    await storage.updateUser(req.user.id, {
+      twoFactorEnabled: true,
+    });
+
+    await storage.logSecurityAudit({
+      userId: req.user.id,
+      actionType: "2FA_VERIFY_SUCCESS",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      success: true,
+      details: { timestamp: new Date() },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error verifying 2FA:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// IP allowlist management
+router.get("/ip-allowlist", async (req, res) => {
+  try {
+    const allowlist = await storage.getIpAllowlist();
+    res.json(allowlist);
+  } catch (error) {
+    console.error('Error getting IP allowlist:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/ip-allowlist", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const ipData = insertIpAllowlistSchema.parse(req.body);
+    const entry = await storage.addIpAllowlist({
+      ...ipData,
+      createdBy: req.user.id,
+    });
+
+    await storage.logSecurityAudit({
+      userId: req.user.id,
+      actionType: "IP_ALLOWLIST_ADD",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      success: true,
+      details: { ipRange: ipData.ipRange },
+    });
+
+    res.status(201).json(entry);
+  } catch (error) {
+    console.error('Error adding IP to allowlist:', error);
+    res.status(400).json({ error: "Invalid IP allowlist data" });
+  }
+});
+
+// Session management
+router.get("/sessions", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    const sessions = await storage.getUserSessions(req.user.id);
+    res.json({
+      current: req.sessionID,
+      sessions,
+    });
+  } catch (error) {
+    console.error('Error getting user sessions:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/sessions/:sessionId", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Unauthorized" });
+
+  try {
+    await storage.terminateSession(req.params.sessionId);
+
+    await storage.logSecurityAudit({
+      userId: req.user.id,
+      actionType: "SESSION_TERMINATED",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+      success: true,
+      details: { sessionId: req.params.sessionId },
+    });
+
+    res.sendStatus(200);
+  } catch (error) {
+    console.error('Error terminating session:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get audit logs
+router.get("/audit-logs", async (req, res) => {
+  try {
+    const logs = await storage.getSecurityAuditLogs();
+    res.json(logs);
+  } catch (error) {
+    console.error('Error getting audit logs:', error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

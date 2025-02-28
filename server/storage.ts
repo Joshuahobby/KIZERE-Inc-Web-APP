@@ -1,12 +1,14 @@
 import { 
   users, roles, documents, devices, systemMetrics, analytics, userActivityLog, apiUsage,
+  ipAllowlist, securityAuditLog, activeSessions,
   type User, type InsertUser, type Role, type InsertRole,
   type Document, type InsertDocument, type Device, type InsertDevice,
   type SystemMetric, type InsertSystemMetric, type Analytic, type InsertAnalytic,
-  type UserActivity, type InsertUserActivity, type ApiUsageMetric, type InsertApiUsageMetric
+  type UserActivity, type InsertUserActivity, type ApiUsageMetric, type InsertApiUsageMetric,
+  type IpAllowlist, type InsertIpAllowlist, type SecurityAuditLog, type InsertSecurityAuditLog,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, like, or, and, sql, desc } from "drizzle-orm";
+import { eq, sql, desc } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -64,6 +66,14 @@ export interface IStorage {
   // API usage methods
   recordApiUsage(usage: InsertApiUsageMetric): Promise<ApiUsageMetric>;
   getApiUsageStats(startDate: Date, endDate: Date): Promise<ApiUsageMetric[]>;
+
+  // Security features
+  getIpAllowlist(): Promise<IpAllowlist[]>;
+  addIpAllowlist(data: InsertIpAllowlist & { createdBy: number }): Promise<IpAllowlist>;
+  logSecurityAudit(data: InsertSecurityAuditLog & { userId: number }): Promise<SecurityAuditLog>;
+  getSecurityAuditLogs(): Promise<SecurityAuditLog[]>;
+  getUserSessions(userId: number): Promise<{ id: string; userAgent: string; ipAddress: string; lastActivity: string }[]>;
+  terminateSession(sessionId: string): Promise<void>;
 
   sessionStore: session.Store;
 }
@@ -527,6 +537,76 @@ export class DatabaseStorage implements IStorage {
         .orderBy(apiUsage.timestamp);
     } catch (error) {
       console.error('Error getting API usage stats:', error);
+      throw error;
+    }
+  }
+
+  // Security methods implementation
+  async getIpAllowlist(): Promise<IpAllowlist[]> {
+    try {
+      return await db.select().from(ipAllowlist);
+    } catch (error) {
+      console.error('Error getting IP allowlist:', error);
+      throw error;
+    }
+  }
+
+  async addIpAllowlist(data: InsertIpAllowlist & { createdBy: number }): Promise<IpAllowlist> {
+    try {
+      const [entry] = await db.insert(ipAllowlist).values(data).returning();
+      return entry;
+    } catch (error) {
+      console.error('Error adding to IP allowlist:', error);
+      throw error;
+    }
+  }
+
+  async logSecurityAudit(data: InsertSecurityAuditLog & { userId: number }): Promise<SecurityAuditLog> {
+    try {
+      const [log] = await db.insert(securityAuditLog).values({
+        ...data,
+        timestamp: new Date(),
+      }).returning();
+      return log;
+    } catch (error) {
+      console.error('Error logging security audit:', error);
+      throw error;
+    }
+  }
+
+  async getSecurityAuditLogs(): Promise<SecurityAuditLog[]> {
+    try {
+      return await db.select()
+        .from(securityAuditLog)
+        .orderBy(desc(securityAuditLog.timestamp));
+    } catch (error) {
+      console.error('Error getting security audit logs:', error);
+      throw error;
+    }
+  }
+
+  async getUserSessions(userId: number): Promise<{ id: string; userAgent: string; ipAddress: string; lastActivity: string }[]> {
+    try {
+      return await db.select({
+        id: activeSessions.sessionId,
+        userAgent: activeSessions.userAgent,
+        ipAddress: activeSessions.ipAddress,
+        lastActivity: activeSessions.lastActivity,
+      })
+        .from(activeSessions)
+        .where(eq(activeSessions.userId, userId))
+        .orderBy(desc(activeSessions.lastActivity));
+    } catch (error) {
+      console.error('Error getting user sessions:', error);
+      throw error;
+    }
+  }
+
+  async terminateSession(sessionId: string): Promise<void> {
+    try {
+      await db.delete(activeSessions).where(eq(activeSessions.sessionId, sessionId));
+    } catch (error) {
+      console.error('Error terminating session:', error);
       throw error;
     }
   }
