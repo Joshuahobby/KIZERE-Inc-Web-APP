@@ -57,10 +57,12 @@ async function comparePasswords(supplied: string, stored: string): Promise<boole
   try {
     const [hashedPassword, salt] = stored.split('.');
     if (!hashedPassword || !salt) {
+      console.log('Invalid stored password format');
       return false;
     }
     const hashedSupplied = (await scryptAsync(supplied, salt, 64)) as Buffer;
     const storedBuffer = Buffer.from(hashedPassword, 'hex');
+    console.log('Password comparison result:', hashedSupplied.length === storedBuffer.length && timingSafeEqual(hashedSupplied, storedBuffer));
     return hashedSupplied.length === storedBuffer.length && timingSafeEqual(hashedSupplied, storedBuffer);
   } catch (error) {
     console.error('Error comparing passwords:', error);
@@ -70,7 +72,7 @@ async function comparePasswords(supplied: string, stored: string): Promise<boole
 
 export function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
@@ -80,7 +82,7 @@ export function setupAuth(app: Express) {
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
       sameSite: 'lax'
     },
-    name: 'kizere.sid' // Custom session name
+    name: 'kizere.sid'
   };
 
   if (app.get('env') === 'production') {
@@ -95,34 +97,49 @@ export function setupAuth(app: Express) {
   // Serve uploaded files statically
   app.use("/uploads", express.static(uploadDir));
 
-  passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      try {
-        const user = await storage.getUserByUsername(username);
-        if (!user) {
-          return done(null, false, { message: "Incorrect username" });
-        }
+  passport.use(new LocalStrategy(async (username, password, done) => {
+    try {
+      console.log('Attempting login for username:', username);
+      const user = await storage.getUserByUsername(username);
 
-        const isValidPassword = await comparePasswords(password, user.password);
-        if (!isValidPassword) {
-          return done(null, false, { message: "Incorrect password" });
-        }
-
-        return done(null, user);
-      } catch (err) {
-        return done(err);
+      if (!user) {
+        console.log('User not found:', username);
+        return done(null, false, { message: "Incorrect username" });
       }
-    }),
-  );
 
-  passport.serializeUser((user, done) => done(null, user.id));
+      console.log('User found, validating password');
+      const isValidPassword = await comparePasswords(password, user.password);
+
+      if (!isValidPassword) {
+        console.log('Invalid password for user:', username);
+        return done(null, false, { message: "Incorrect password" });
+      }
+
+      console.log('Login successful for user:', username);
+      return done(null, user);
+    } catch (err) {
+      console.error('Error during authentication:', err);
+      return done(err);
+    }
+  }));
+
+  passport.serializeUser((user, done) => {
+    console.log('Serializing user:', user.id);
+    done(null, user.id);
+  });
 
   passport.deserializeUser(async (id: number, done) => {
     try {
+      console.log('Deserializing user:', id);
       const user = await storage.getUser(id);
-      if (!user) return done(null, false);
+      if (!user) {
+        console.log('User not found during deserialization:', id);
+        return done(null, false);
+      }
+      console.log('User deserialized successfully:', id);
       done(null, user);
     } catch (err) {
+      console.error('Error during deserialization:', err);
       done(err);
     }
   });
@@ -151,33 +168,52 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", (req, res, next) => {
+    console.log('Login request received:', req.body.username);
+
     passport.authenticate("local", (err, user, info) => {
-      if (err) return next(err);
+      if (err) {
+        console.error('Authentication error:', err);
+        return next(err);
+      }
       if (!user) {
+        console.log('Authentication failed:', info?.message);
         return res.status(401).json({ error: info?.message || "Authentication failed" });
       }
+
       req.login(user, (err) => {
-        if (err) return next(err);
+        if (err) {
+          console.error('Login error:', err);
+          return next(err);
+        }
+        console.log('Login successful:', user.username);
         res.status(200).json(user);
       });
     })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {
+    const username = req.user?.username;
+    console.log('Logout request received for user:', username);
+
     req.logout((err) => {
-      if (err) return next(err);
+      if (err) {
+        console.error('Logout error:', err);
+        return next(err);
+      }
+      console.log('Logout successful for user:', username);
       res.sendStatus(200);
     });
   });
 
   app.get("/api/user", (req, res) => {
+    console.log('User session check:', req.isAuthenticated());
     if (!req.isAuthenticated()) {
       return res.status(401).json({ error: "Not authenticated" });
     }
     res.json(req.user);
   });
 
-  // Debug endpoint to check session state
+  // Debug endpoint
   app.get("/api/debug/session", (req, res) => {
     res.json({
       authenticated: req.isAuthenticated(),

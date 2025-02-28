@@ -42,7 +42,7 @@ export default function AuthPage() {
                 <TabsTrigger value="login">Login</TabsTrigger>
                 <TabsTrigger value="register">Register</TabsTrigger>
               </TabsList>
-              
+
               <TabsContent value="login">
                 <AuthForm
                   mode="login"
@@ -50,7 +50,7 @@ export default function AuthPage() {
                   isPending={loginMutation.isPending}
                 />
               </TabsContent>
-              
+
               <TabsContent value="register">
                 <AuthForm
                   mode="register"
@@ -88,7 +88,7 @@ function AuthForm({
   isPending,
 }: { 
   mode: "login" | "register";
-  onSubmit: (data: InsertUser) => void;
+  onSubmit: (data: any) => void;
   isPending: boolean;
 }) {
   const form = useForm<InsertUser>({
@@ -109,13 +109,13 @@ function AuthForm({
             <FormItem>
               <FormLabel>Username</FormLabel>
               <FormControl>
-                <Input {...field} />
+                <Input {...field} autoComplete="username" />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        
+
         <FormField
           control={form.control}
           name="password"
@@ -123,7 +123,11 @@ function AuthForm({
             <FormItem>
               <FormLabel>Password</FormLabel>
               <FormControl>
-                <Input type="password" {...field} />
+                <Input 
+                  type="password" 
+                  {...field} 
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
