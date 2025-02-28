@@ -11,6 +11,18 @@ export const CategoryConfidence = z.object({
 
 export type CategoryConfidence = z.infer<typeof CategoryConfidence>;
 
+// Add social media sharing types
+export const SharePlatform = z.enum(["TWITTER", "FACEBOOK", "LINKEDIN", "WHATSAPP"]);
+export type SharePlatform = z.infer<typeof SharePlatform>;
+
+export const ShareMetrics = z.object({
+  platform: SharePlatform,
+  timestamp: z.string(),
+  success: z.boolean(),
+  engagementCount: z.number().optional(),
+});
+export type ShareMetrics = z.infer<typeof ShareMetrics>;
+
 // Users table with enhanced security fields
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -175,6 +187,9 @@ export const documents = pgTable("documents", {
   suggestedCategories: json("suggested_categories").$type<CategoryConfidence[]>(),
   categoryFeatures: json("category_features").$type<Record<string, number>>(),
   mlProcessedAt: timestamp("ml_processed_at"),
+  socialShares: json("social_shares").$type<ShareMetrics[]>(),
+  lastSharedAt: timestamp("last_shared_at"),
+  totalShares: integer("total_shares").notNull().default(0),
 });
 
 // Update devices table
@@ -200,6 +215,9 @@ export const devices = pgTable("devices", {
   suggestedCategories: json("suggested_categories").$type<CategoryConfidence[]>(),
   categoryFeatures: json("category_features").$type<Record<string, number>>(),
   mlProcessedAt: timestamp("ml_processed_at"),
+  socialShares: json("social_shares").$type<ShareMetrics[]>(),
+  lastSharedAt: timestamp("last_shared_at"),
+  totalShares: integer("total_shares").notNull().default(0),
 });
 
 // Update the systemMetrics definition to fix the double declaration
@@ -301,6 +319,7 @@ export const insertDocumentSchema = createInsertSchema(documents)
     ownerInfo: true,
     suggestedCategories: true,
     categoryFeatures: true,
+    socialShares:true
   })
   .extend({
     status: ItemStatus,
@@ -317,6 +336,7 @@ export const insertDocumentSchema = createInsertSchema(documents)
       .max(200, "Location cannot exceed 200 characters"),
     suggestedCategories: CategoryConfidence.array().optional(),
     categoryFeatures: z.record(z.number()).optional(),
+    socialShares: ShareMetrics.array().optional(),
   });
 
 // Device specific enums
@@ -336,6 +356,7 @@ export const insertDeviceSchema = createInsertSchema(devices)
     status: true,
     suggestedCategories: true,
     categoryFeatures: true,
+    socialShares: true
   })
   .extend({
     status: ItemStatus,
@@ -360,6 +381,7 @@ export const insertDeviceSchema = createInsertSchema(devices)
       .max(200, "Location cannot exceed 200 characters"),
     suggestedCategories: CategoryConfidence.array().optional(),
     categoryFeatures: z.record(z.number()).optional(),
+    socialShares: ShareMetrics.array().optional(),
   });
 
 // Add schemas for the new tables
@@ -413,6 +435,7 @@ export const SystemMetricValue = z.union([
 export type SystemMetricValue = z.infer<typeof SystemMetricValue>;
 
 // Update systemMetrics table definition (This line is already included in the edited snippet)
+
 
 // Type exports
 export type User = typeof users.$inferSelect;

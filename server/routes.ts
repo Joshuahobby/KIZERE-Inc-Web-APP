@@ -6,6 +6,7 @@ import { insertDocumentSchema, insertDeviceSchema } from "@shared/schema";
 import { adminRouter } from "./routes/admin";
 import { setupWebSocket, notificationServer } from "./websocket";
 import { categorizeItem, recordMLMetrics } from "./services/categorization";
+import { SocialShareService } from './services/social-share';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -231,6 +232,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Error searching devices" });
     }
   });
+
+  // Add to registerRoutes function after existing routes
+  app.post("/api/documents/:id/share", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const id = parseInt(req.params.id);
+    const document = await storage.getDocument(id);
+
+    if (!document) {
+      return res.status(404).send("Document not found");
+    }
+
+    const { platform } = req.body;
+    const shareUrl = `${process.env.APP_URL}/documents/${document.uniqueId}`;
+
+    const result = await SocialShareService.shareToSocialMedia(
+      {
+        title: document.title,
+        description: document.description,
+        url: shareUrl,
+        platform,
+      },
+      'document',
+      id
+    );
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json({ shareUrl: result.url });
+  });
+
+  app.post("/api/devices/:id/share", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+
+    const id = parseInt(req.params.id);
+    const device = await storage.getDevice(id);
+
+    if (!device) {
+      return res.status(404).send("Device not found");
+    }
+
+    const { platform } = req.body;
+    const shareUrl = `${process.env.APP_URL}/devices/${device.uniqueId}`;
+
+    const result = await SocialShareService.shareToSocialMedia(
+      {
+        title: `${device.brandModel} - ${device.category}`,
+        description: device.description,
+        url: shareUrl,
+        platform,
+      },
+      'device',
+      id
+    );
+
+    if (!result.success) {
+      return res.status(500).json({ error: result.error });
+    }
+
+    res.json({ shareUrl: result.url });
+  });
+
 
   const httpServer = createServer(app);
 
