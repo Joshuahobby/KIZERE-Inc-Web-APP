@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
 import { Document, ItemStatus } from "@shared/schema";
 import { format } from "date-fns";
-import { FileText, MapPin, Clock, UserCircle2, Calendar, Phone, QrCode } from "lucide-react";
-import { QRCode } from "@/components/ui/qr-code";
+import { FileText, MapPin, Clock, UserCircle2, Calendar, Phone } from "lucide-react";
 
 interface DocumentCardProps {
   document: Document;
@@ -26,89 +25,72 @@ export function DocumentCard({ document, onStatusChange, showDetails = false }: 
       </CardHeader>
 
       <CardContent>
-        <div className="flex items-start gap-4 mb-4">
-          <div className="flex-1">
-            <p className="text-sm text-card-foreground/90 mb-4">
-              {document.description}
-            </p>
+        <p className="text-sm text-card-foreground/90 mb-4">
+          {document.description}
+        </p>
 
-            <div className="space-y-2 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                <span>{document.category}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4" />
-                <span>{document.lastLocation}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                <span>{format(new Date(document.reportedAt), "PPp")}</span>
-              </div>
-            </div>
+        <div className="space-y-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <FileText className="h-4 w-4" />
+            <span>{document.category}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4" />
+            <span>{document.lastLocation}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            <span>{format(new Date(document.reportedAt), "PPp")}</span>
           </div>
 
-          {/* QR Code Section */}
-          <div className="flex flex-col items-center gap-2">
-            <QRCode
-              data={`https://kizere.com/documents/${document.uniqueId}`}
-              size={96}
-              className="bg-white p-2 rounded-lg"
-            />
-            <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <QrCode className="h-3 w-3" />
-              Scan to view
-            </span>
-          </div>
-        </div>
-
-        {showDetails && (
-          <>
-            <div className="mt-4 pt-4 border-t border-border">
-              <h4 className="font-medium mb-2">Document Details</h4>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  <span>Issue Date: {format(new Date(document.metadata.issueDate), "PP")}</span>
-                </div>
-                {document.metadata.expiryDate && (
+          {showDetails && (
+            <>
+              <div className="mt-4 pt-4 border-t border-border">
+                <h4 className="font-medium mb-2">Document Details</h4>
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
-                    <span>Expiry Date: {format(new Date(document.metadata.expiryDate), "PP")}</span>
+                    <span>Issue Date: {format(new Date(document.metadata.issueDate), "PP")}</span>
                   </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  <span>Document Number: {document.metadata.documentNumber}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <UserCircle2 className="h-4 w-4" />
-                  <span>Issuer: {document.metadata.issuer}</span>
+                  {document.metadata.expiryDate && (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      <span>Expiry Date: {format(new Date(document.metadata.expiryDate), "PP")}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    <span>Document Number: {document.metadata.documentNumber}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <UserCircle2 className="h-4 w-4" />
+                    <span>Issuer: {document.metadata.issuer}</span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {document.ownerInfo && Object.keys(document.ownerInfo).length > 0 && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <h4 className="font-medium mb-2">Owner Contact</h4>
-                <div className="space-y-2">
-                  {document.ownerInfo.name && (
-                    <div className="flex items-center gap-2">
-                      <UserCircle2 className="h-4 w-4" />
-                      <span>{document.ownerInfo.name}</span>
-                    </div>
-                  )}
-                  {document.ownerInfo.phone && (
-                    <div className="flex items-center gap-2">
-                      <Phone className="h-4 w-4" />
-                      <span>{document.ownerInfo.phone}</span>
-                    </div>
-                  )}
+              {document.ownerInfo && Object.keys(document.ownerInfo).length > 0 && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <h4 className="font-medium mb-2">Owner Contact</h4>
+                  <div className="space-y-2">
+                    {document.ownerInfo.name && (
+                      <div className="flex items-center gap-2">
+                        <UserCircle2 className="h-4 w-4" />
+                        <span>{document.ownerInfo.name}</span>
+                      </div>
+                    )}
+                    {document.ownerInfo.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4" />
+                        <span>{document.ownerInfo.phone}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          )}
+        </div>
       </CardContent>
 
       {onStatusChange && document.status !== "REVIEW" && (

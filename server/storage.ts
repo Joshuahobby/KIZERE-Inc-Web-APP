@@ -59,9 +59,7 @@ export class DatabaseStorage implements IStorage {
   // User methods implementation...
   async getUser(id: number): Promise<User | undefined> {
     try {
-      console.log('Getting user by ID:', id);
       const [user] = await db.select().from(users).where(eq(users.id, id));
-      console.log('Retrieved user:', user?.username);
       return user;
     } catch (error) {
       console.error('Error getting user:', error);
@@ -71,9 +69,7 @@ export class DatabaseStorage implements IStorage {
 
   async getUserByUsername(username: string): Promise<User | undefined> {
     try {
-      console.log('Getting user by username:', username);
       const [user] = await db.select().from(users).where(eq(users.username, username));
-      console.log('Retrieved user by username:', user?.id);
       return user;
     } catch (error) {
       console.error('Error getting user by username:', error);
@@ -83,9 +79,7 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     try {
-      console.log('Creating new user:', insertUser.username);
       const [user] = await db.insert(users).values(insertUser).returning();
-      console.log('Created user successfully:', user.id);
       return user;
     } catch (error) {
       console.error('Error creating user:', error);
@@ -95,13 +89,11 @@ export class DatabaseStorage implements IStorage {
 
   async updateUser(id: number, updates: Partial<User>): Promise<User> {
     try {
-      console.log('Updating user:', id);
       const [user] = await db
         .update(users)
         .set(updates)
         .where(eq(users.id, id))
         .returning();
-      console.log('Updated user successfully:', user.id);
       return user;
     } catch (error) {
       console.error('Error updating user:', error);
@@ -111,10 +103,7 @@ export class DatabaseStorage implements IStorage {
 
   async getAllUsers(): Promise<User[]> {
     try {
-      console.log('Getting all users');
-      const allUsers = await db.select().from(users);
-      console.log('Retrieved users count:', allUsers.length);
-      return allUsers;
+      return await db.select().from(users);
     } catch (error) {
       console.error('Error getting all users:', error);
       throw error;
