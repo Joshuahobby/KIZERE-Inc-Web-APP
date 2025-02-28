@@ -74,9 +74,20 @@ export function setupAuth(app: Express) {
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: 'lax'
+    },
+    name: 'kizere.sid' // Custom session name
   };
 
-  app.set("trust proxy", 1);
+  if (app.get('env') === 'production') {
+    app.set('trust proxy', 1);
+    if (sessionSettings.cookie) sessionSettings.cookie.secure = true;
+  }
+
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
@@ -116,13 +127,13 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res, next) => {
-    const existingUser = await storage.getUserByUsername(req.body.username);
-    if (existingUser) {
-      return res.status(400).json({ error: "Username already exists" });
-    }
-
+  app.post("/api/register", async (req, res) => {
     try {
+      const existingUser = await storage.getUserByUsername(req.body.username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
       const hashedPassword = await hashPassword(req.body.password);
       const user = await storage.createUser({
         ...req.body,
@@ -130,7 +141,7 @@ export function setupAuth(app: Express) {
       });
 
       req.login(user, (err) => {
-        if (err) return next(err);
+        if (err) throw err;
         res.status(201).json(user);
       });
     } catch (error) {
@@ -139,8 +150,17 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(req.user);
+  app.post("/api/login", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+      if (err) return next(err);
+      if (!user) {
+        return res.status(401).json({ error: info?.message || "Authentication failed" });
+      }
+      req.login(user, (err) => {
+        if (err) return next(err);
+        res.status(200).json(user);
+      });
+    })(req, res, next);
   });
 
   app.post("/api/logout", (req, res, next) => {
@@ -151,52 +171,18 @@ export function setupAuth(app: Express) {
   });
 
   app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!req.isAuthenticated()) {
+      return res.status(401).json({ error: "Not authenticated" });
+    }
     res.json(req.user);
   });
 
-  app.post("/api/user/profile-picture", upload.single('profilePicture'), async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-    try {
-      const user = await storage.updateUser(req.user.id, {
-        profilePicture: `/uploads/${req.file.filename}`
-      });
-      res.json(user);
-    } catch (error) {
-      console.error('Error updating profile picture:', error);
-      res.status(500).json({ error: "Failed to update profile picture" });
-    }
-  });
-
-  app.patch("/api/user/profile", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-
-    try {
-      const { username, currentPassword, newPassword } = req.body;
-      const user = await storage.getUser(req.user.id);
-
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Verify current password
-      if (!(await comparePasswords(currentPassword, user.password))) {
-        return res.status(400).json({ error: "Current password is incorrect" });
-      }
-
-      // Update user data
-      const updates: Partial<SelectUser> = { username };
-      if (newPassword) {
-        updates.password = await hashPassword(newPassword);
-      }
-
-      const updatedUser = await storage.updateUser(user.id, updates);
-      res.json(updatedUser);
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      res.status(500).json({ error: "Failed to update profile" });
-    }
+  // Debug endpoint to check session state
+  app.get("/api/debug/session", (req, res) => {
+    res.json({
+      authenticated: req.isAuthenticated(),
+      session: req.session,
+      user: req.user
+    });
   });
 }
