@@ -3,8 +3,9 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
 import { Device, ItemStatus } from "@shared/schema";
 import { format } from "date-fns";
-import { Smartphone, MapPin, Clock, Tag, UserCircle2, Calendar, Phone } from "lucide-react";
+import { Smartphone, MapPin, Clock, Tag, UserCircle2, Calendar, Phone, QrCode } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { QRCode } from "@/components/ui/qr-code";
 
 interface DeviceCardProps {
   device: Device;
@@ -13,6 +14,13 @@ interface DeviceCardProps {
 }
 
 export function DeviceCard({ device, onStatusChange, showDetails = false }: DeviceCardProps) {
+  const qrData = JSON.stringify({
+    type: 'device',
+    id: device.uniqueId,
+    brand: device.brandModel,
+    serial: device.serialNumber
+  });
+
   return (
     <Card className="w-full hover:shadow-lg transition-shadow">
       <CardHeader className="flex-row justify-between items-start space-y-0">
@@ -89,6 +97,21 @@ export function DeviceCard({ device, onStatusChange, showDetails = false }: Devi
                       <span>Identifying Marks: {device.metadata.identifyingMarks}</span>
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-border">
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <QrCode className="h-4 w-4" />
+                  Item QR Code
+                </h4>
+                <div className="flex justify-center p-4 bg-background/50 rounded-lg">
+                  <QRCode
+                    data={qrData}
+                    size={128}
+                    level="H"
+                    className="rounded-lg"
+                  />
                 </div>
               </div>
 

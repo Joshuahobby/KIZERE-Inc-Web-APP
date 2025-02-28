@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "./status-badge";
 import { Document, ItemStatus } from "@shared/schema";
 import { format } from "date-fns";
-import { FileText, MapPin, Clock, UserCircle2, Calendar, Phone } from "lucide-react";
+import { FileText, MapPin, Clock, UserCircle2, Calendar, Phone, QrCode } from "lucide-react";
+import { QRCode } from "@/components/ui/qr-code";
 
 interface DocumentCardProps {
   document: Document;
@@ -12,6 +13,13 @@ interface DocumentCardProps {
 }
 
 export function DocumentCard({ document, onStatusChange, showDetails = false }: DocumentCardProps) {
+  const qrData = JSON.stringify({
+    type: 'document',
+    id: document.uniqueId,
+    title: document.title,
+    docNumber: document.metadata.documentNumber
+  });
+
   return (
     <Card className="w-full hover:shadow-lg transition-shadow">
       <CardHeader className="flex-row justify-between items-start space-y-0">
@@ -66,6 +74,21 @@ export function DocumentCard({ document, onStatusChange, showDetails = false }: 
                     <UserCircle2 className="h-4 w-4" />
                     <span>Issuer: {document.metadata.issuer}</span>
                   </div>
+                </div>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-border">
+                <h4 className="font-medium mb-2 flex items-center gap-2">
+                  <QrCode className="h-4 w-4" />
+                  Item QR Code
+                </h4>
+                <div className="flex justify-center p-4 bg-background/50 rounded-lg">
+                  <QRCode
+                    data={qrData}
+                    size={128}
+                    level="H"
+                    className="rounded-lg"
+                  />
                 </div>
               </div>
 
