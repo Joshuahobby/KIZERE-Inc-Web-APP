@@ -21,11 +21,28 @@ export default function AuthPage() {
   const { user, loginMutation, registerMutation } = useAuth();
   const [, setLocation] = useLocation();
 
-  // Redirect if already logged in
+  // Redirect based on user role
   if (user) {
-    setLocation("/");
+    if (user.isAdmin) {
+      setLocation("/admin");
+    } else {
+      setLocation("/");
+    }
     return null;
   }
+
+  const handleLogin = (data: InsertUser) => {
+    loginMutation.mutate(data, {
+      onSuccess: (user) => {
+        // Redirect to admin dashboard if admin user
+        if (user.isAdmin) {
+          setLocation("/admin");
+        } else {
+          setLocation("/");
+        }
+      }
+    });
+  };
 
   return (
     <div className="min-h-screen grid md:grid-cols-2">
@@ -46,7 +63,7 @@ export default function AuthPage() {
               <TabsContent value="login">
                 <AuthForm
                   mode="login"
-                  onSubmit={(data) => loginMutation.mutate(data)}
+                  onSubmit={handleLogin}
                   isPending={loginMutation.isPending}
                 />
               </TabsContent>
