@@ -7,6 +7,7 @@ import { adminRouter } from "./routes/admin";
 import { setupWebSocket, notificationServer } from "./websocket";
 import { categorizeItem, recordMLMetrics } from "./services/categorization";
 import { SocialShareService } from './services/social-share';
+import { nanoid } from 'nanoid';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
@@ -28,6 +29,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(documents);
   });
 
+  // Document creation route
   app.post("/api/documents", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -46,15 +48,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parsed.data.description
       );
 
-      // Create document with ML categorization data
+      // Create document with all required fields
       const document = await storage.createDocument({
         ...parsed.data,
+        uniqueId: nanoid(), // Generate unique ID
         suggestedCategories,
         categoryFeatures,
         mlProcessedAt: new Date().toISOString(),
         socialShares: [],
         lastSharedAt: null,
-        totalShares: 0
+        totalShares: 0,
+        moderated: false,
+        moderatedBy: null,
+        moderatedAt: null,
+        qrCode: null,
+        qrCodeGeneratedAt: null
       }, req.user.id);
 
       // Record ML metrics
@@ -123,6 +131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(devices);
   });
 
+  // Device creation route
   app.post("/api/devices", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -141,15 +150,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         parsed.data.description
       );
 
-      // Create device with ML categorization data
+      // Create device with all required fields
       const device = await storage.createDevice({
         ...parsed.data,
+        uniqueId: nanoid(), // Generate unique ID
         suggestedCategories,
         categoryFeatures,
         mlProcessedAt: new Date().toISOString(),
         socialShares: [],
         lastSharedAt: null,
-        totalShares: 0
+        totalShares: 0,
+        moderated: false,
+        moderatedBy: null,
+        moderatedAt: null,
+        qrCode: null,
+        qrCodeGeneratedAt: null
       }, req.user.id);
 
       // Record ML metrics

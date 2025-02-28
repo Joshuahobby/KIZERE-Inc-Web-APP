@@ -308,6 +308,7 @@ export const insertSecurityAuditLogSchema = createInsertSchema(securityAuditLog)
 export const DocumentCategory = z.enum(["ID", "CERTIFICATE", "LICENSE", "OTHER"]);
 export type DocumentCategory = z.infer<typeof DocumentCategory>;
 
+// Update document insert schema to handle new fields properly
 export const insertDocumentSchema = createInsertSchema(documents)
   .pick({
     title: true,
@@ -317,8 +318,8 @@ export const insertDocumentSchema = createInsertSchema(documents)
     lastLocation: true,
     metadata: true,
     ownerInfo: true,
-    suggestedCategories: true,
-    categoryFeatures: true,
+    suggestedCategories:true,
+    categoryFeatures:true,
     socialShares:true
   })
   .extend({
@@ -343,6 +344,7 @@ export const insertDocumentSchema = createInsertSchema(documents)
 export const DeviceCategory = z.enum(["COMPUTER", "PHONE", "TABLET", "OTHER"]);
 export type DeviceCategory = z.infer<typeof DeviceCategory>;
 
+// Update device insert schema to handle new fields properly
 export const insertDeviceSchema = createInsertSchema(devices)
   .pick({
     category: true,
