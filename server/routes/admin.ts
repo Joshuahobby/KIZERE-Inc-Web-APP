@@ -14,6 +14,7 @@ router.get("/stats", async (req, res) => {
     const users = await storage.getAllUsers();
     const documents = await storage.getAllDocuments();
     const devices = await storage.getAllDevices();
+    const returnRate = await storage.getItemReturnRate();
 
     const stats = {
       totalUsers: users.length,
@@ -34,12 +35,108 @@ router.get("/stats", async (req, res) => {
           REVIEW: devices.filter(d => d.status === "REVIEW").length,
         },
         unmoderated: devices.filter(d => !d.moderated).length,
-      }
+      },
+      returnRate
     };
 
     res.json(stats);
   } catch (error) {
     console.error('Error getting stats:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get system metrics
+router.get("/system-metrics", async (req, res) => {
+  try {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000); // Last 24 hours
+
+    const metrics = await storage.getSystemMetrics("PERFORMANCE", startDate, endDate);
+    const latestMetric = metrics[metrics.length - 1];
+
+    // Calculate error rate from API usage
+    const apiStats = await storage.getApiUsageStats(startDate, endDate);
+    const errorRequests = apiStats.filter(stat => stat.statusCode >= 400).length;
+    const errorRate = apiStats.length > 0 ? (errorRequests / apiStats.length) * 100 : 0;
+
+    res.json({
+      apiResponseTime: latestMetric?.value.responseTime || 0,
+      errorRate,
+      activeUsers: latestMetric?.value.activeUsers || 0,
+      cpuUsage: latestMetric?.value.cpuUsage || 0,
+      memoryUsage: latestMetric?.value.memoryUsage || 0,
+    });
+  } catch (error) {
+    console.error('Error getting system metrics:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get user activity statistics
+router.get("/user-activity", async (req, res) => {
+  try {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000); // Last 24 hours
+
+    const activities = await storage.getApiUsageStats(startDate, endDate);
+    const logins = activities.filter(a => a.endpoint === "/api/login" && a.statusCode === 200).length;
+    const moderationActions = activities.filter(a => 
+      a.endpoint.startsWith("/api/admin/moderation") && 
+      a.statusCode === 200
+    ).length;
+    const itemReports = activities.filter(a => 
+      (a.endpoint === "/api/documents" || a.endpoint === "/api/devices") && 
+      a.method === "POST" &&
+      a.statusCode === 201
+    ).length;
+
+    res.json({
+      recentLogins: logins,
+      activeModeration: moderationActions,
+      itemsReported: itemReports,
+    });
+  } catch (error) {
+    console.error('Error getting user activity:', error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get API usage statistics
+router.get("/api-usage", async (req, res) => {
+  try {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - 24 * 60 * 60 * 1000); // Last 24 hours
+
+    const apiStats = await storage.getApiUsageStats(startDate, endDate);
+
+    // Calculate average response time
+    const totalResponseTime = apiStats.reduce((sum, stat) => sum + stat.responseTime, 0);
+    const averageResponseTime = apiStats.length > 0 ? totalResponseTime / apiStats.length : 0;
+
+    // Calculate error rate
+    const errorRequests = apiStats.filter(stat => stat.statusCode >= 400).length;
+    const errorRate = apiStats.length > 0 ? (errorRequests / apiStats.length) * 100 : 0;
+
+    // Get top endpoints
+    const endpointCounts = apiStats.reduce((acc, stat) => {
+      acc[stat.endpoint] = (acc[stat.endpoint] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const topEndpoints = Object.entries(endpointCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5)
+      .map(([endpoint, count]) => ({ endpoint, count }));
+
+    res.json({
+      totalRequests: apiStats.length,
+      averageResponseTime,
+      errorRate,
+      topEndpoints,
+    });
+  } catch (error) {
+    console.error('Error getting API usage stats:', error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

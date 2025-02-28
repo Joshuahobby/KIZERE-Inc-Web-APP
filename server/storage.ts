@@ -1,8 +1,12 @@
-import { users, roles, documents, devices, 
+import { 
+  users, roles, documents, devices, systemMetrics, analytics, userActivityLog, apiUsage,
   type User, type InsertUser, type Role, type InsertRole,
-  type Document, type InsertDocument, type Device, type InsertDevice } from "@shared/schema";
+  type Document, type InsertDocument, type Device, type InsertDevice,
+  type SystemMetric, type InsertSystemMetric, type Analytic, type InsertAnalytic,
+  type UserActivity, type InsertUserActivity, type ApiUsageMetric, type InsertApiUsageMetric
+} from "@shared/schema";
 import { db } from "./db";
-import { eq, like, or, and, sql } from "drizzle-orm";
+import { eq, like, or, and, sql, desc } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { pool } from "./db";
@@ -42,6 +46,24 @@ export interface IStorage {
   getUnmoderatedDevices(): Promise<Device[]>;
   moderateDevice(id: number, moderatorId: number): Promise<Device>;
   searchDevices(query: string): Promise<Device[]>;
+
+  // Analytics methods
+  recordAnalyticEvent(event: InsertAnalytic): Promise<Analytic>;
+  getAnalytics(startDate: Date, endDate: Date): Promise<Analytic[]>;
+  getItemReturnRate(): Promise<{ total: number; returned: number; rate: number }>;
+  getPopularCategories(): Promise<{ category: string; count: number }[]>;
+
+  // System monitoring methods
+  recordSystemMetric(metric: InsertSystemMetric): Promise<SystemMetric>;
+  getSystemMetrics(type: string, startDate: Date, endDate: Date): Promise<SystemMetric[]>;
+
+  // User activity methods
+  recordUserActivity(activity: InsertUserActivity): Promise<UserActivity>;
+  getUserActivities(userId: number): Promise<UserActivity[]>;
+
+  // API usage methods
+  recordApiUsage(usage: InsertApiUsageMetric): Promise<ApiUsageMetric>;
+  getApiUsageStats(startDate: Date, endDate: Date): Promise<ApiUsageMetric[]>;
 
   sessionStore: session.Store;
 }
@@ -370,6 +392,141 @@ export class DatabaseStorage implements IStorage {
       return results;
     } catch (error) {
       console.error('Error searching devices:', error);
+      throw error;
+    }
+  }
+
+  // Analytics implementation
+  async recordAnalyticEvent(event: InsertAnalytic): Promise<Analytic> {
+    try {
+      const [analytic] = await db.insert(analytics).values(event).returning();
+      return analytic;
+    } catch (error) {
+      console.error('Error recording analytic event:', error);
+      throw error;
+    }
+  }
+
+  async getAnalytics(startDate: Date, endDate: Date): Promise<Analytic[]> {
+    try {
+      return await db.select()
+        .from(analytics)
+        .where(sql`${analytics.timestamp} BETWEEN ${startDate} AND ${endDate}`);
+    } catch (error) {
+      console.error('Error getting analytics:', error);
+      throw error;
+    }
+  }
+
+  async getItemReturnRate(): Promise<{ total: number; returned: number; rate: number }> {
+    try {
+      const total = await db.select({ count: sql<number>`count(*)` })
+        .from(analytics)
+        .where(eq(analytics.eventType, 'ITEM_REPORTED'));
+
+      const returned = await db.select({ count: sql<number>`count(*)` })
+        .from(analytics)
+        .where(eq(analytics.eventType, 'ITEM_RETURNED'));
+
+      const totalCount = total[0]?.count || 0;
+      const returnedCount = returned[0]?.count || 0;
+      const rate = totalCount > 0 ? (returnedCount / totalCount) * 100 : 0;
+
+      return {
+        total: totalCount,
+        returned: returnedCount,
+        rate: Number(rate.toFixed(2))
+      };
+    } catch (error) {
+      console.error('Error calculating return rate:', error);
+      throw error;
+    }
+  }
+
+  async getPopularCategories(): Promise<{ category: string; count: number }[]> {
+    try {
+      return await db.select({
+        category: analytics.itemType,
+        count: sql<number>`count(*)`
+      })
+        .from(analytics)
+        .groupBy(analytics.itemType)
+        .orderBy(sql`count(*) DESC`);
+    } catch (error) {
+      console.error('Error getting popular categories:', error);
+      throw error;
+    }
+  }
+
+  // System monitoring implementation
+  async recordSystemMetric(metric: InsertSystemMetric): Promise<SystemMetric> {
+    try {
+      const [systemMetric] = await db.insert(systemMetrics).values(metric).returning();
+      return systemMetric;
+    } catch (error) {
+      console.error('Error recording system metric:', error);
+      throw error;
+    }
+  }
+
+  async getSystemMetrics(type: string, startDate: Date, endDate: Date): Promise<SystemMetric[]> {
+    try {
+      return await db.select()
+        .from(systemMetrics)
+        .where(
+          and(
+            eq(systemMetrics.metricType, type),
+            sql`${systemMetrics.timestamp} BETWEEN ${startDate} AND ${endDate}`
+          )
+        );
+    } catch (error) {
+      console.error('Error getting system metrics:', error);
+      throw error;
+    }
+  }
+
+  // User activity implementation
+  async recordUserActivity(activity: InsertUserActivity): Promise<UserActivity> {
+    try {
+      const [userActivity] = await db.insert(userActivityLog).values(activity).returning();
+      return userActivity;
+    } catch (error) {
+      console.error('Error recording user activity:', error);
+      throw error;
+    }
+  }
+
+  async getUserActivities(userId: number): Promise<UserActivity[]> {
+    try {
+      return await db.select()
+        .from(userActivityLog)
+        .where(eq(userActivityLog.userId, userId))
+        .orderBy(desc(userActivityLog.timestamp));
+    } catch (error) {
+      console.error('Error getting user activities:', error);
+      throw error;
+    }
+  }
+
+  // API usage implementation
+  async recordApiUsage(usage: InsertApiUsageMetric): Promise<ApiUsageMetric> {
+    try {
+      const [apiUsageMetric] = await db.insert(apiUsage).values(usage).returning();
+      return apiUsageMetric;
+    } catch (error) {
+      console.error('Error recording API usage:', error);
+      throw error;
+    }
+  }
+
+  async getApiUsageStats(startDate: Date, endDate: Date): Promise<ApiUsageMetric[]> {
+    try {
+      return await db.select()
+        .from(apiUsage)
+        .where(sql`${apiUsage.timestamp} BETWEEN ${startDate} AND ${endDate}`)
+        .orderBy(apiUsage.timestamp);
+    } catch (error) {
+      console.error('Error getting API usage stats:', error);
       throw error;
     }
   }

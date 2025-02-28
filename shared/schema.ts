@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, boolean, json, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, boolean, json, integer, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -133,6 +133,49 @@ export const devices = pgTable("devices", {
   qrCodeGeneratedAt: timestamp("qr_code_generated_at"),
 });
 
+// Add system metrics table
+export const systemMetrics = pgTable("system_metrics", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  metricType: text("metric_type").notNull(), // API_CALL, ERROR, PERFORMANCE
+  value: jsonb("value").notNull(),
+  details: text("details"),
+});
+
+// Add analytics table
+export const analytics = pgTable("analytics", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  eventType: text("event_type").notNull(), // ITEM_REPORTED, ITEM_FOUND, ITEM_RETURNED
+  itemType: text("item_type").notNull(), // DOCUMENT, DEVICE
+  itemId: integer("item_id").notNull(),
+  userId: integer("user_id").references(() => users.id),
+  metadata: jsonb("metadata"),
+});
+
+// Add user activity log
+export const userActivityLog = pgTable("user_activity_log", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  userId: integer("user_id").references(() => users.id),
+  actionType: text("action_type").notNull(), // LOGIN, LOGOUT, ITEM_CREATE, etc.
+  details: jsonb("details"),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+});
+
+// Add API usage tracking
+export const apiUsage = pgTable("api_usage", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  endpoint: text("endpoint").notNull(),
+  method: text("method").notNull(),
+  userId: integer("user_id").references(() => users.id),
+  responseTime: integer("response_time").notNull(), // in milliseconds
+  statusCode: integer("status_code").notNull(),
+  ipAddress: text("ip_address"),
+});
+
 // Schema definitions
 export const insertUserSchema = createInsertSchema(users)
   .pick({
@@ -217,6 +260,32 @@ export const insertDeviceSchema = createInsertSchema(devices)
       .max(200, "Location cannot exceed 200 characters"),
   });
 
+// Add schemas for the new tables
+export const insertSystemMetricSchema = createInsertSchema(systemMetrics).extend({
+  metricType: z.enum(["API_CALL", "ERROR", "PERFORMANCE"]),
+  value: z.record(z.unknown()),
+});
+
+export const insertAnalyticSchema = createInsertSchema(analytics).extend({
+  eventType: z.enum(["ITEM_REPORTED", "ITEM_FOUND", "ITEM_RETURNED"]),
+  itemType: z.enum(["DOCUMENT", "DEVICE"]),
+  metadata: z.record(z.unknown()).optional(),
+});
+
+export const insertUserActivitySchema = createInsertSchema(userActivityLog).extend({
+  actionType: z.enum([
+    "LOGIN",
+    "LOGOUT",
+    "ITEM_CREATE",
+    "ITEM_UPDATE",
+    "ITEM_MODERATE",
+    "SETTINGS_UPDATE"
+  ]),
+  details: z.record(z.unknown()).optional(),
+});
+
+export const insertApiUsageSchema = createInsertSchema(apiUsage);
+
 // Type exports
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -226,3 +295,16 @@ export type Document = typeof documents.$inferSelect;
 export type InsertDocument = z.infer<typeof insertDocumentSchema>;
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
+
+// Export types for the new tables
+export type SystemMetric = typeof systemMetrics.$inferSelect;
+export type InsertSystemMetric = z.infer<typeof insertSystemMetricSchema>;
+
+export type Analytic = typeof analytics.$inferSelect;
+export type InsertAnalytic = z.infer<typeof insertAnalyticSchema>;
+
+export type UserActivity = typeof userActivityLog.$inferSelect;
+export type InsertUserActivity = z.infer<typeof insertUserActivitySchema>;
+
+export type ApiUsageMetric = typeof apiUsage.$inferSelect;
+export type InsertApiUsageMetric = z.infer<typeof insertApiUsageSchema>;

@@ -18,7 +18,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, UserCheck, Users, AlertTriangle, Shield } from "lucide-react";
+import { 
+  Loader2, UserCheck, Users, AlertTriangle, Shield, 
+  LineChart, Activity, Database, Clock 
+} from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Document, Device, Role, User } from "@shared/schema";
@@ -46,6 +49,11 @@ type AdminStats = {
     byStatus: Record<string, number>;
     unmoderated: number;
   };
+  returnRate: {
+    total: number;
+    returned: number;
+    rate: number;
+  };
 };
 
 type ModerationData = {
@@ -59,6 +67,27 @@ type NewRole = {
   permissions: string[];
 };
 
+type SystemMetrics = {
+  apiResponseTime: number;
+  errorRate: number;
+  activeUsers: number;
+  cpuUsage: number;
+  memoryUsage: number;
+};
+
+type UserActivityStats = {
+  recentLogins: number;
+  activeModeration: number;
+  itemsReported: number;
+};
+
+type ApiUsageStats = {
+  totalRequests: number;
+  averageResponseTime: number;
+  errorRate: number;
+  topEndpoints: { endpoint: string; count: number }[];
+};
+
 export default function AdminDashboard() {
   const { toast } = useToast();
   const [newRole, setNewRole] = useState<NewRole>({
@@ -68,6 +97,7 @@ export default function AdminDashboard() {
   });
   const [dialogOpen, setDialogOpen] = useState(false);
 
+  // Add queries for new analytics data
   const { data: stats, isLoading: statsLoading } = useQuery<AdminStats>({
     queryKey: ["/api/admin/stats"],
   });
@@ -84,6 +114,20 @@ export default function AdminDashboard() {
     queryKey: ["/api/admin/moderation"],
   });
 
+  const { data: systemMetrics, isLoading: systemLoading } = useQuery<SystemMetrics>({
+    queryKey: ["/api/admin/system-metrics"],
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  const { data: userActivity, isLoading: activityLoading } = useQuery<UserActivityStats>({
+    queryKey: ["/api/admin/user-activity"],
+  });
+
+  const { data: apiUsage, isLoading: apiUsageLoading } = useQuery<ApiUsageStats>({
+    queryKey: ["/api/admin/api-usage"],
+  });
+
+  // Keep existing mutations...
   const moderateDocumentMutation = useMutation({
     mutationFn: async (documentId: number) => {
       const res = await apiRequest("POST", `/api/admin/moderation/documents/${documentId}`);
@@ -155,13 +199,8 @@ export default function AdminDashboard() {
     },
   });
 
-  if (statsLoading || usersLoading || moderationLoading || rolesLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
+  const isLoading = statsLoading || usersLoading || moderationLoading || rolesLoading ||
+    systemLoading || activityLoading || apiUsageLoading;
 
   const handleCreateRole = () => {
     if (!newRole.name.trim()) {
@@ -175,6 +214,14 @@ export default function AdminDashboard() {
     createRoleMutation.mutate(newRole);
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 space-y-8">
       <div>
@@ -184,7 +231,7 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      {/* Statistics */}
+      {/* System Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -193,45 +240,195 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats?.totalUsers || 0}</div>
+            {userActivity && (
+              <div className="text-xs text-muted-foreground mt-1">
+                {userActivity.recentLogins} active today
+              </div>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Documents</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Return Rate</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.documents.total || 0}</div>
+            <div className="text-2xl font-bold">
+              {stats?.returnRate?.rate.toFixed(1)}%
+            </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {stats?.documents.unmoderated || 0} pending moderation
+              {stats?.returnRate?.returned} of {stats?.returnRate?.total} items returned
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Devices</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">System Health</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.devices.total || 0}</div>
+            <div className="text-2xl font-bold">
+              {systemMetrics?.errorRate === 0 ? "Healthy" : "Warning"}
+            </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {stats?.devices.unmoderated || 0} pending moderation
+              {systemMetrics?.errorRate.toFixed(2)}% error rate
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">User Roles</CardTitle>
-            <Shield className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">API Performance</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{roles?.length || 0}</div>
+            <div className="text-2xl font-bold">
+              {apiUsage?.averageResponseTime.toFixed(0)}ms
+            </div>
+            <div className="text-xs text-muted-foreground mt-1">
+              {apiUsage?.totalRequests} requests today
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Content Statistics */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Documents Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">
+                    Total Documents
+                  </div>
+                  <div className="text-2xl font-bold">
+                    {stats?.documents.total || 0}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">
+                    Pending Review
+                  </div>
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {stats?.documents.unmoderated || 0}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground mb-2">
+                  Status Distribution
+                </div>
+                <div className="space-y-2">
+                  {stats?.documents.byStatus && Object.entries(stats.documents.byStatus).map(([status, count]) => (
+                    <div key={status} className="flex justify-between items-center">
+                      <StatusBadge status={status as any} />
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Devices Overview</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">
+                    Total Devices
+                  </div>
+                  <div className="text-2xl font-bold">
+                    {stats?.devices.total || 0}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-1">
+                    Pending Review
+                  </div>
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {stats?.devices.unmoderated || 0}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground mb-2">
+                  Status Distribution
+                </div>
+                <div className="space-y-2">
+                  {stats?.devices.byStatus && Object.entries(stats.devices.byStatus).map(([status, count]) => (
+                    <div key={status} className="flex justify-between items-center">
+                      <StatusBadge status={status as any} />
+                      <span className="font-medium">{count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* System Metrics */}
+      <Card>
+        <CardHeader>
+          <CardTitle>System Performance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-8">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <div className="text-sm font-medium text-muted-foreground mb-2">
+                  CPU Usage
+                </div>
+                <div className="text-2xl font-bold">
+                  {systemMetrics?.cpuUsage.toFixed(1)}%
+                </div>
+              </div>
+              <div>
+                <div className="text-sm font-medium text-muted-foreground mb-2">
+                  Memory Usage
+                </div>
+                <div className="text-2xl font-bold">
+                  {systemMetrics?.memoryUsage.toFixed(1)}%
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-medium text-muted-foreground mb-2">
+                API Endpoints Performance
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Endpoint</TableHead>
+                    <TableHead className="text-right">Requests</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {apiUsage?.topEndpoints.map((endpoint) => (
+                    <TableRow key={endpoint.endpoint}>
+                      <TableCell>{endpoint.endpoint}</TableCell>
+                      <TableCell className="text-right">{endpoint.count}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Role Management */}
       <Card>
