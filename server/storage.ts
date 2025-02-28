@@ -198,12 +198,20 @@ export class DatabaseStorage implements IStorage {
   // Document methods implementation
   async createDocument(document: InsertDocument, userId: number): Promise<Document> {
     try {
+      console.log('Creating document with data:', document);
       const [newDocument] = await db.insert(documents).values({
         ...document,
         uniqueId: nanoid(10),
         reportedBy: userId,
         reportedAt: new Date(),
+        moderated: false,
+        suggestedCategories: [],
+        categoryFeatures: {},
+        socialShares: [],
+        totalShares: 0,
       }).returning();
+
+      console.log('Document created successfully:', newDocument);
       return newDocument;
     } catch (error) {
       console.error('Error creating document:', error);
@@ -304,12 +312,20 @@ export class DatabaseStorage implements IStorage {
   // Device methods implementation
   async createDevice(device: InsertDevice, userId: number): Promise<Device> {
     try {
+      console.log('Creating device with data:', device);
       const [newDevice] = await db.insert(devices).values({
         ...device,
         uniqueId: nanoid(10),
         reportedBy: userId,
         reportedAt: new Date(),
+        moderated: false,
+        suggestedCategories: [],
+        categoryFeatures: {},
+        socialShares: [],
+        totalShares: 0,
       }).returning();
+
+      console.log('Device created successfully:', newDevice);
       return newDevice;
     } catch (error) {
       console.error('Error creating device:', error);

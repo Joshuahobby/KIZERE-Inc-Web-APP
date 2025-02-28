@@ -318,14 +318,15 @@ export const insertDocumentSchema = createInsertSchema(documents)
     lastLocation: true,
     metadata: true,
     ownerInfo: true,
-    suggestedCategories:true,
-    categoryFeatures:true,
-    socialShares:true
   })
   .extend({
     status: ItemStatus,
     category: DocumentCategory,
-    metadata: DocumentMetadataSchema,
+    metadata: DocumentMetadataSchema.extend({
+      issueDate: z.string().optional(), // Make these optional for easier form submission
+      expiryDate: z.string().optional(),
+      documentNumber: z.string().optional(),
+    }),
     title: z.string()
       .min(5, "Title must be at least 5 characters")
       .max(100, "Title cannot exceed 100 characters"),
@@ -335,9 +336,7 @@ export const insertDocumentSchema = createInsertSchema(documents)
     lastLocation: z.string()
       .min(3, "Location must be at least 3 characters")
       .max(200, "Location cannot exceed 200 characters"),
-    suggestedCategories: CategoryConfidence.array().optional(),
-    categoryFeatures: z.record(z.number()).optional(),
-    socialShares: ShareMetrics.array().optional(),
+    ownerInfo: z.record(z.string()).optional(),
   });
 
 // Device specific enums
@@ -351,18 +350,18 @@ export const insertDeviceSchema = createInsertSchema(devices)
     brandModel: true,
     serialNumber: true,
     description: true,
-    picture: true,
     metadata: true,
     ownerInfo: true,
     lastLocation: true,
     status: true,
-    suggestedCategories: true,
-    categoryFeatures: true,
-    socialShares: true
   })
   .extend({
     status: ItemStatus,
     category: DeviceCategory,
+    metadata: DeviceMetadataSchema.extend({
+      purchaseDate: z.string().optional(),
+      identifyingMarks: z.string().optional(),
+    }),
     serialNumber: z.string()
       .min(5, "Serial number/IMEI must be at least 5 characters")
       .refine((val: string) => {
@@ -371,7 +370,6 @@ export const insertDeviceSchema = createInsertSchema(devices)
         // Serial number validation (alphanumeric, min 5 chars)
         return /^[A-Za-z0-9\-_]{5,}$/.test(val);
       }, "Invalid serial number/IMEI format"),
-    metadata: DeviceMetadataSchema,
     brandModel: z.string()
       .min(3, "Brand & model must be at least 3 characters")
       .max(100, "Brand & model cannot exceed 100 characters"),
@@ -381,9 +379,7 @@ export const insertDeviceSchema = createInsertSchema(devices)
     lastLocation: z.string()
       .min(3, "Location must be at least 3 characters")
       .max(200, "Location cannot exceed 200 characters"),
-    suggestedCategories: CategoryConfidence.array().optional(),
-    categoryFeatures: z.record(z.number()).optional(),
-    socialShares: ShareMetrics.array().optional(),
+    ownerInfo: z.record(z.string()).optional(),
   });
 
 // Add schemas for the new tables
@@ -436,7 +432,7 @@ export const SystemMetricValue = z.union([
 
 export type SystemMetricValue = z.infer<typeof SystemMetricValue>;
 
-// Update systemMetrics table definition (This line is already included in the edited snippet)
+// Update systemMetrics table definition
 
 
 // Type exports
