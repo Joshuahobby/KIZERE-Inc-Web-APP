@@ -80,7 +80,7 @@ export interface IStorage {
   sessionStore: session.Store;
 
   // Registered items methods
-  createRegisteredItem(item: InsertRegisteredItem): Promise<RegisteredItem>;
+  createRegisteredItem(item: InsertRegisteredItem & { ownerId: number }): Promise<RegisteredItem>;
   getRegisteredItem(id: number): Promise<RegisteredItem | undefined>;
   getRegisteredItemByOfficialId(officialId: string): Promise<RegisteredItem | undefined>;
   getUserRegisteredItems(userId: number): Promise<RegisteredItem[]>;
@@ -643,19 +643,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Registered items implementation
-  async createRegisteredItem(item: InsertRegisteredItem): Promise<RegisteredItem> {
+  async createRegisteredItem(item: InsertRegisteredItem & { ownerId: number }): Promise<RegisteredItem> {
     try {
-      console.log('Creating registered item:', {
-        itemType: item.itemType,
-        officialId: item.officialId,
-        pictures: Array.isArray(item.pictures) ? item.pictures.length : 'invalid pictures',
-        hasProof: !!item.proofOfOwnership
-      });
-
-      // Pre-validation checks
+      // Input validation
       if (!Array.isArray(item.pictures) || item.pictures.length === 0) {
         throw new Error('At least one picture is required');
       }
+
+      if (!item.ownerId) {
+        throw new Error('Owner ID is required');
+      }
+
+      console.log('Creating registered item:', {
+        itemType: item.itemType,
+        officialId: item.officialId,
+        pictures: item.pictures.length,
+        hasProof: !!item.proofOfOwnership,
+        ownerId: item.ownerId
+      });
 
       const [registeredItem] = await db.insert(registeredItems).values({
         uniqueId: nanoid(),

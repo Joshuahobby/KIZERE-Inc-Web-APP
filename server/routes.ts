@@ -88,11 +88,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         files: req.files ? Object.keys(req.files) : 'no files'
       });
 
-      // Get uploaded files URLs
+      // Validate file uploads
       const picturesFiles = (req.files as { [fieldname: string]: Express.Multer.File[] })['pictures'] || [];
       const proofOfOwnershipFile = (req.files as { [fieldname: string]: Express.Multer.File[] })['proofOfOwnership']?.[0];
 
-      // Validate that we have at least one picture
       if (picturesFiles.length === 0) {
         return res.status(400).json({ error: "At least one picture is required" });
       }
@@ -131,7 +130,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Create registered item
-      const registeredItem = await storage.createRegisteredItem(parsed.data);
+      const registeredItem = await storage.createRegisteredItem({
+        ...parsed.data,
+        ownerId: registrationData.ownerId
+      });
+
       console.log('Item registered successfully:', registeredItem);
 
       res.status(201).json(registeredItem);

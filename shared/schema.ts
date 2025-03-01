@@ -170,7 +170,7 @@ export const DeviceMetadataSchema = z.object({
 export const RegistrationStatus = z.enum(["ACTIVE", "EXPIRED", "SUSPENDED"]);
 export type RegistrationStatus = z.infer<typeof RegistrationStatus>;
 
-// Create registered items table
+// Create registered items table with proper column types
 export const registeredItems = pgTable("registered_items", {
   id: serial("id").primaryKey(),
   uniqueId: text("unique_id").notNull().unique(),
@@ -187,7 +187,7 @@ export const registeredItems = pgTable("registered_items", {
   updatedAt: timestamp("updated_at")
 });
 
-// Update the insert schema for registered items
+// Define the insert schema with proper validation
 export const insertRegisteredItemSchema = createInsertSchema(registeredItems)
   .pick({
     itemType: true,
@@ -197,12 +197,19 @@ export const insertRegisteredItemSchema = createInsertSchema(registeredItems)
     metadata: true,
   })
   .extend({
-    itemType: z.enum(["DOCUMENT", "DEVICE"]),
-    officialId: z.string().min(1, "Official ID is required"),
+    itemType: z.enum(["DOCUMENT", "DEVICE"], {
+      required_error: "Item type is required",
+      invalid_type_error: "Must be either DOCUMENT or DEVICE"
+    }),
+    officialId: z.string().min(1, "Official ID is required").max(100, "Official ID cannot exceed 100 characters"),
     pictures: z.array(z.string()).min(1, "At least one picture is required"),
     proofOfOwnership: z.string().optional(),
     metadata: z.record(z.unknown()).optional().default({}),
   });
+
+// Export types
+export type RegisteredItem = typeof registeredItems.$inferSelect;
+export type InsertRegisteredItem = z.infer<typeof insertRegisteredItemSchema>;
 
 // Add registration-related fields to documents and devices tables
 export const documents = pgTable("documents", {
@@ -467,8 +474,6 @@ export const SystemMetricValue = z.union([
 
 export type SystemMetricValue = z.infer<typeof SystemMetricValue>;
 
-// Update systemMetrics table definition
-
 
 // Add blockchain-related types and schemas
 export const BlockchainTransactionType = z.enum([
@@ -508,7 +513,7 @@ export const insertBlockchainTransactionSchema = createInsertSchema(blockchainTr
     metadata: z.record(z.unknown()).optional(),
   });
 
-// Export types
+// Type exports
 export type BlockchainTransaction = typeof blockchainTransactions.$inferSelect;
 export type InsertBlockchainTransaction = z.infer<typeof insertBlockchainTransactionSchema>;
 
