@@ -8,8 +8,32 @@ import { setupWebSocket, notificationServer } from "./websocket";
 import { categorizeItem, recordMLMetrics } from "./services/categorization";
 import { SocialShareService } from './services/social-share';
 import { nanoid } from 'nanoid';
+import multer from "multer";
+import { nanoid as nanoid2 } from "nanoid";
+import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Configure multer for file uploads
+  const storage = multer.diskStorage({
+    destination: "./uploads",
+    filename: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+  });
+
+  const upload = multer({ storage: storage });
+
+  // File upload endpoint
+  app.post("/api/upload", upload.single("file"), (req, res) => {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+    // Return the file URL that can be used to access the uploaded file
+    const fileUrl = `/uploads/${req.file.filename}`;
+    res.json({ url: fileUrl });
+  });
+
   setupAuth(app);
 
   // Mount admin routes
@@ -306,13 +330,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { itemType, officialId, pictures, proofOfOwnership, metadata } = req.body;
 
+      // Generate unique ID for the registered item
+      const uniqueId = nanoid2();
+
       const registeredItem = await storage.createRegisteredItem({
+        uniqueId,
         itemType,
         officialId,
         pictures,
         proofOfOwnership,
         metadata,
-        registrationDate: new Date().toISOString(),
+        registrationDate: new Date(),
+        ownerId: req.user.id,
+        status: 'ACTIVE'
       }, req.user.id);
 
       console.log('Item registered successfully:', registeredItem);
