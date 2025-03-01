@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRegisteredItemSchema, type InsertRegisteredItem } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function RegisterItem() {
   const [, setLocation] = useLocation();
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
 
@@ -56,37 +57,24 @@ export default function RegisterItem() {
     mutationFn: async (data: InsertRegisteredItem) => {
       setUploading(true);
       try {
-        // Upload pictures first
-        const uploadPromises = selectedFiles.map(async (file) => {
-          const formData = new FormData();
-          formData.append("file", file);
-
-          const response = await fetch("/api/upload", {
-            method: "POST",
-            body: formData,
-          });
-
-          if (!response.ok) {
-            throw new Error(`Failed to upload file: ${await response.text()}`);
-          }
-
-          const result = await response.json();
-          return result.url;
-        });
-
-        const pictureUrls = await Promise.all(uploadPromises);
-
-        // Create registration data
         const formData = new FormData();
+
+        // Add basic fields
         formData.append("itemType", data.itemType);
         formData.append("officialId", data.officialId);
-        formData.append("pictures", JSON.stringify(pictureUrls));
-        if (data.proofOfOwnership) {
-          formData.append("proofOfOwnership", data.proofOfOwnership);
-        }
         formData.append("metadata", JSON.stringify(data.metadata || {}));
 
-        // Submit registration
+        // Add picture files
+        selectedFiles.forEach((file) => {
+          formData.append("pictures", file);
+        });
+
+        // Add proof of ownership if exists
+        if (proofFile) {
+          formData.append("proofOfOwnership", proofFile);
+        }
+
+        // Submit registration with all files
         const response = await fetch("/api/register-item", {
           method: "POST",
           body: formData,
@@ -128,6 +116,12 @@ export default function RegisterItem() {
     }
   };
 
+  const handleProofFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.[0]) {
+      setProofFile(e.target.files[0]);
+    }
+  };
+
   const onSubmit = async (data: InsertRegisteredItem) => {
     if (selectedFiles.length === 0) {
       toast({
@@ -141,7 +135,6 @@ export default function RegisterItem() {
     try {
       await registerMutation.mutateAsync(data);
     } catch (error) {
-      // Error will be handled by mutation's onError
       console.error("Form submission failed:", error);
     }
   };
@@ -256,11 +249,7 @@ export default function RegisterItem() {
                         <Input 
                           type="file"
                           accept=".pdf,.jpg,.png"
-                          onChange={(e) => {
-                            if (e.target.files?.[0]) {
-                              field.onChange(e.target.files[0]);
-                            }
-                          }}
+                          onChange={handleProofFileChange}
                         />
                       </FormControl>
                       <FormDescription>

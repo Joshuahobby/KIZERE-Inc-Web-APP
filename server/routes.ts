@@ -72,32 +72,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   app.use("/api/admin", adminRouter);
 
-  // Register item route
-  app.post("/api/register-item", upload.single('itemImage'), async (req, res) => { //Added multer middleware
+  // Register item route with multiple file upload support
+  app.post("/api/register-item", upload.fields([
+    { name: 'pictures', maxCount: 10 },
+    { name: 'proofOfOwnership', maxCount: 1 }
+  ]), async (req, res) => {
     try {
       if (!req.isAuthenticated()) {
         console.log('Unauthorized registration attempt');
         return res.sendStatus(401);
       }
 
-      console.log('Registration request received:', req.body);
+      console.log('Registration request received:', {
+        body: req.body,
+        files: req.files
+      });
 
-      const parsed = insertRegisteredItemSchema.safeParse(req.body);
+      // Get uploaded files URLs
+      const picturesFiles = (req.files as { [fieldname: string]: Express.Multer.File[] })['pictures'] || [];
+      const proofOfOwnershipFile = (req.files as { [fieldname: string]: Express.Multer.File[] })['proofOfOwnership']?.[0];
+
+      const pictures = picturesFiles.map(file => `/uploads/${file.filename}`);
+      const proofOfOwnership = proofOfOwnershipFile ? `/uploads/${proofOfOwnershipFile.filename}` : undefined;
+
+      const registrationData = {
+        ...req.body,
+        pictures,
+        proofOfOwnership,
+        uniqueId: nanoid(),
+        ownerId: req.user.id,
+        registrationDate: new Date(),
+        status: 'ACTIVE'
+      };
+
+      // Validate the complete registration data
+      const parsed = insertRegisteredItemSchema.safeParse(registrationData);
       if (!parsed.success) {
         console.error('Registration validation failed:', parsed.error);
         return res.status(400).json({ error: parsed.error.errors });
       }
 
-      const registrationData = {
-        ...parsed.data,
-        uniqueId: nanoid(),
-        ownerId: req.user.id,
-        registrationDate: new Date(),
-        status: 'ACTIVE',
-        itemImage: req.file ? `/uploads/${req.file.filename}` : null // Add image URL if file uploaded
-      };
-
-      console.log('Attempting to create registered item:', registrationData);
+      console.log('Creating registered item with data:', registrationData);
 
       const registeredItem = await storage.createRegisteredItem(registrationData);
       console.log('Item registered successfully:', registeredItem);
