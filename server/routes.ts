@@ -29,7 +29,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const upload = multer({ 
+  const upload = multer({
     storage: uploadStorage,
     limits: {
       fileSize: 5 * 1024 * 1024, // 5MB limit
@@ -62,7 +62,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ url: fileUrl });
     } catch (error) {
       console.error('File upload error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to upload file",
         details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -80,12 +80,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (!req.isAuthenticated()) {
         console.log('Unauthorized registration attempt');
-        return res.sendStatus(401);
+        return res.status(401).json({ error: "Not authenticated" });
       }
 
       console.log('Registration request received:', {
         body: req.body,
-        files: req.files
+        files: req.files ? Object.keys(req.files) : 'no files'
       });
 
       // Get uploaded files URLs
@@ -100,45 +100,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const pictures = picturesFiles.map(file => `/uploads/${file.filename}`);
       const proofOfOwnership = proofOfOwnershipFile ? `/uploads/${proofOfOwnershipFile.filename}` : undefined;
 
-      // Parse the metadata if it exists
+      // Parse metadata if provided
       let metadata = {};
-      try {
-        if (req.body.metadata) {
+      if (req.body.metadata) {
+        try {
           metadata = JSON.parse(req.body.metadata);
+        } catch (error) {
+          console.error('Error parsing metadata:', error);
+          return res.status(400).json({ error: "Invalid metadata format" });
         }
-      } catch (error) {
-        console.error('Error parsing metadata:', error);
-        return res.status(400).json({ error: "Invalid metadata format" });
       }
 
+      // Create registration data
       const registrationData = {
         itemType: req.body.itemType,
         officialId: req.body.officialId,
         pictures,
         proofOfOwnership,
         metadata,
-        uniqueId: nanoid(),
-        ownerId: req.user.id,
-        registrationDate: new Date(),
-        status: 'ACTIVE'
+        ownerId: req.user.id
       };
 
-      console.log('Creating registered item with data:', registrationData);
+      console.log('Attempting to create registered item:', registrationData);
 
-      // Validate the complete registration data
+      // Validate registration data
       const parsed = insertRegisteredItemSchema.safeParse(registrationData);
       if (!parsed.success) {
         console.error('Registration validation failed:', parsed.error);
         return res.status(400).json({ error: parsed.error.errors });
       }
 
+      // Create registered item
       const registeredItem = await storage.createRegisteredItem(parsed.data);
       console.log('Item registered successfully:', registeredItem);
 
       res.status(201).json(registeredItem);
     } catch (error) {
       console.error('Error in item registration:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to register item",
         details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -199,7 +198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(document);
     } catch (error) {
       console.error('Error in document creation:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Failed to create document",
         details: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -224,7 +223,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch documents" });
     }
   });
-  
+
   app.patch("/api/documents/:id/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -324,7 +323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(device);
     } catch (error) {
       console.error('Error in device creation:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Error creating device",
         details: error instanceof Error ? error.message : 'Unknown error'
       });

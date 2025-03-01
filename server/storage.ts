@@ -645,22 +645,28 @@ export class DatabaseStorage implements IStorage {
   // Registered items implementation
   async createRegisteredItem(item: InsertRegisteredItem): Promise<RegisteredItem> {
     try {
-      console.log('Creating registered item with data:', {
-        ...item,
-        pictures: item.pictures.length,
-        proofOfOwnership: item.proofOfOwnership ? 'provided' : 'not provided'
+      console.log('Creating registered item:', {
+        itemType: item.itemType,
+        officialId: item.officialId,
+        pictures: Array.isArray(item.pictures) ? item.pictures.length : 'invalid pictures',
+        hasProof: !!item.proofOfOwnership
       });
 
+      // Pre-validation checks
+      if (!Array.isArray(item.pictures) || item.pictures.length === 0) {
+        throw new Error('At least one picture is required');
+      }
+
       const [registeredItem] = await db.insert(registeredItems).values({
-        uniqueId: item.uniqueId,
+        uniqueId: nanoid(),
         officialId: item.officialId,
         itemType: item.itemType,
         ownerId: item.ownerId,
-        registrationDate: item.registrationDate,
+        registrationDate: new Date(),
         pictures: item.pictures,
         proofOfOwnership: item.proofOfOwnership,
         metadata: item.metadata || {},
-        status: item.status || 'ACTIVE',
+        status: 'ACTIVE',
         createdAt: new Date(),
         updatedAt: new Date()
       }).returning();
@@ -668,8 +674,7 @@ export class DatabaseStorage implements IStorage {
       console.log('Successfully created registered item:', {
         id: registeredItem.id,
         uniqueId: registeredItem.uniqueId,
-        itemType: registeredItem.itemType,
-        status: registeredItem.status
+        itemType: registeredItem.itemType
       });
 
       return registeredItem;

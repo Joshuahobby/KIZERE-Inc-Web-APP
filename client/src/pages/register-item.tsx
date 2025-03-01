@@ -289,7 +289,8 @@ export default function RegisterItem() {
             </div>
           </form>
         </Form>
-        <Alert className="mb-6">
+
+        <Alert className="mt-8">
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
             Please provide accurate information and clear pictures of your item. This will help in verification and recovery if needed.

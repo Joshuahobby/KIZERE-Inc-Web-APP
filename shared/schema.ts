@@ -175,41 +175,34 @@ export const registeredItems = pgTable("registered_items", {
   id: serial("id").primaryKey(),
   uniqueId: text("unique_id").notNull().unique(),
   officialId: text("official_id").notNull(),
-  itemType: text("item_type").notNull(), // DOCUMENT or DEVICE
-  itemId: integer("item_id").notNull(), // References either documents or devices
-  ownerId: integer("owner_id").references(() => users.id),
+  itemType: text("item_type").notNull(),
+  ownerId: integer("owner_id").notNull().references(() => users.id),
   registrationDate: timestamp("registration_date").notNull().defaultNow(),
   expiryDate: timestamp("expiry_date"),
   proofOfOwnership: text("proof_of_ownership"),
-  pictures: json("pictures").$type<string[]>().notNull(),
+  pictures: text("pictures").array().$type<string[]>().notNull(),
   status: text("status").notNull().default("ACTIVE"),
-  metadata: jsonb("metadata"),
+  metadata: jsonb("metadata").default({}),
   createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at"),
-  latestBlockchainHash: text("latest_blockchain_hash"),
-  blockchainSynced: boolean("blockchain_synced").notNull().default(false),
+  updatedAt: timestamp("updated_at")
 });
 
-// Add insert schema for registered items
+// Update the insert schema for registered items
 export const insertRegisteredItemSchema = createInsertSchema(registeredItems)
   .pick({
-    officialId: true,
     itemType: true,
+    officialId: true,
     pictures: true,
     proofOfOwnership: true,
     metadata: true,
   })
   .extend({
+    itemType: z.enum(["DOCUMENT", "DEVICE"]),
     officialId: z.string().min(1, "Official ID is required"),
-    itemType: z.enum(["DOCUMENT", "DEVICE"], {
-      required_error: "Item type is required",
-      invalid_type_error: "Must be either DOCUMENT or DEVICE"
-    }),
     pictures: z.array(z.string()).min(1, "At least one picture is required"),
     proofOfOwnership: z.string().optional(),
-    metadata: z.record(z.unknown()).optional(),
+    metadata: z.record(z.unknown()).optional().default({}),
   });
-
 
 // Add registration-related fields to documents and devices tables
 export const documents = pgTable("documents", {
