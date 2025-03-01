@@ -92,18 +92,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const picturesFiles = (req.files as { [fieldname: string]: Express.Multer.File[] })['pictures'] || [];
       const proofOfOwnershipFile = (req.files as { [fieldname: string]: Express.Multer.File[] })['proofOfOwnership']?.[0];
 
+      // Validate that we have at least one picture
+      if (picturesFiles.length === 0) {
+        return res.status(400).json({ error: "At least one picture is required" });
+      }
+
       const pictures = picturesFiles.map(file => `/uploads/${file.filename}`);
       const proofOfOwnership = proofOfOwnershipFile ? `/uploads/${proofOfOwnershipFile.filename}` : undefined;
+
+      // Parse the metadata if it exists
+      let metadata = {};
+      try {
+        if (req.body.metadata) {
+          metadata = JSON.parse(req.body.metadata);
+        }
+      } catch (error) {
+        console.error('Error parsing metadata:', error);
+        return res.status(400).json({ error: "Invalid metadata format" });
+      }
 
       const registrationData = {
         ...req.body,
         pictures,
         proofOfOwnership,
+        metadata,
         uniqueId: nanoid(),
         ownerId: req.user.id,
         registrationDate: new Date(),
         status: 'ACTIVE'
       };
+
+      console.log('Creating registered item with data:', registrationData);
 
       // Validate the complete registration data
       const parsed = insertRegisteredItemSchema.safeParse(registrationData);
@@ -112,9 +131,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: parsed.error.errors });
       }
 
-      console.log('Creating registered item with data:', registrationData);
-
-      const registeredItem = await storage.createRegisteredItem(registrationData);
+      const registeredItem = await storage.createRegisteredItem(parsed.data);
       console.log('Item registered successfully:', registeredItem);
 
       res.status(201).json(registeredItem);

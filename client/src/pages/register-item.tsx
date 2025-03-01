@@ -55,6 +55,7 @@ export default function RegisterItem() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: InsertRegisteredItem) => {
+      console.log('Starting registration mutation with data:', data);
       setUploading(true);
       try {
         const formData = new FormData();
@@ -64,7 +65,7 @@ export default function RegisterItem() {
         formData.append("officialId", data.officialId);
         formData.append("metadata", JSON.stringify(data.metadata || {}));
 
-        // Add picture files
+        // Add pictures
         selectedFiles.forEach((file) => {
           formData.append("pictures", file);
         });
@@ -74,25 +75,30 @@ export default function RegisterItem() {
           formData.append("proofOfOwnership", proofFile);
         }
 
-        // Submit registration with all files
+        console.log('Submitting form data...');
         const response = await fetch("/api/register-item", {
           method: "POST",
           body: formData,
         });
 
         if (!response.ok) {
-          throw new Error(`Registration failed: ${await response.text()}`);
+          const errorText = await response.text();
+          console.error('Registration failed:', errorText);
+          throw new Error(`Registration failed: ${errorText}`);
         }
 
-        return response.json();
+        const result = await response.json();
+        console.log('Registration successful:', result);
+        return result;
       } catch (error) {
-        console.error("Registration error:", error);
+        console.error('Registration error:', error);
         throw error instanceof Error ? error : new Error("Registration failed");
       } finally {
         setUploading(false);
       }
     },
     onSuccess: () => {
+      console.log('Registration successful, invalidating queries...');
       queryClient.invalidateQueries({ queryKey: ["/api/registered-items"] });
       toast({
         title: "Success",
@@ -101,6 +107,7 @@ export default function RegisterItem() {
       setLocation("/");
     },
     onError: (error: Error) => {
+      console.error('Registration mutation error:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -112,17 +119,21 @@ export default function RegisterItem() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
+      console.log('Selected picture files:', files.length);
       setSelectedFiles(files);
     }
   };
 
   const handleProofFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
+      console.log('Selected proof file:', e.target.files[0].name);
       setProofFile(e.target.files[0]);
     }
   };
 
   const onSubmit = async (data: InsertRegisteredItem) => {
+    console.log('Form submitted with data:', data);
+
     if (selectedFiles.length === 0) {
       toast({
         title: "Error",
@@ -133,9 +144,10 @@ export default function RegisterItem() {
     }
 
     try {
+      console.log('Initiating registration mutation...');
       await registerMutation.mutateAsync(data);
     } catch (error) {
-      console.error("Form submission failed:", error);
+      console.error('Form submission error:', error);
     }
   };
 
