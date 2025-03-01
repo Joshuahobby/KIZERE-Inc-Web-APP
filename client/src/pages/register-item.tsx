@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRegisteredItemSchema, type InsertRegisteredItem } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -45,6 +45,7 @@ export default function RegisterItem() {
     resolver: zodResolver(insertRegisteredItemSchema),
     defaultValues: {
       itemType: "DOCUMENT",
+      officialId: "",
       pictures: [],
       metadata: {},
     },
@@ -80,22 +81,17 @@ export default function RegisterItem() {
           pictures: pictureUrls,
         };
 
-        const res = await fetch("/api/register-item", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(registrationData),
-        });
-
+        const res = await apiRequest("POST", "/api/register-item", registrationData);
         if (!res.ok) {
-          throw new Error(`Failed to register item: ${await res.text()}`);
+          throw new Error(`Registration failed: ${await res.text()}`);
         }
 
         return await res.json();
       } catch (error) {
-        console.error("Registration error:", error);
-        throw error;
+        if (error instanceof Error) {
+          throw error;
+        }
+        throw new Error("An unknown error occurred");
       } finally {
         setUploading(false);
       }
@@ -137,6 +133,7 @@ export default function RegisterItem() {
     try {
       await registerMutation.mutateAsync(data);
     } catch (error) {
+      // Error will be handled by mutation's onError
       console.error("Form submission failed:", error);
     }
   };
@@ -249,7 +246,7 @@ export default function RegisterItem() {
                       <FormLabel>Proof of Ownership</FormLabel>
                       <FormControl>
                         <Input 
-                          type="file" 
+                          type="file"
                           accept=".pdf,.jpg,.png"
                           onChange={(e) => {
                             if (e.target.files?.[0]) {
@@ -259,7 +256,7 @@ export default function RegisterItem() {
                         />
                       </FormControl>
                       <FormDescription>
-                        Upload receipt, warranty card, or other proof of ownership
+                        Upload receipt, warranty card, or other proof of ownership (optional)
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
