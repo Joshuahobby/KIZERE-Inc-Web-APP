@@ -2,7 +2,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { insertRegisteredItemSchema, type InsertRegisteredItem } from "@shared/schema";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +33,6 @@ import { ChevronLeft, Loader2, AlertCircle } from "lucide-react";
 import { Link } from "wouter";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
 export default function RegisterItem() {
@@ -55,7 +54,7 @@ export default function RegisterItem() {
     mutationFn: async (data: InsertRegisteredItem) => {
       setUploading(true);
       try {
-        // Upload all pictures first
+        // Upload pictures first
         const pictureUrls = await Promise.all(
           selectedFiles.map(async (file) => {
             const formData = new FormData();
@@ -67,8 +66,7 @@ export default function RegisterItem() {
             });
 
             if (!res.ok) {
-              const errorText = await res.text();
-              throw new Error(`Failed to upload file: ${errorText}`);
+              throw new Error(`Failed to upload file: ${await res.text()}`);
             }
 
             const { url } = await res.json();
@@ -76,22 +74,27 @@ export default function RegisterItem() {
           })
         );
 
-        // Create registration data with uploaded picture URLs
+        // Submit registration with uploaded URLs
         const registrationData = {
           ...data,
           pictures: pictureUrls,
         };
 
-        // Submit registration
-        const res = await apiRequest("POST", "/api/register-item", registrationData);
+        const res = await fetch("/api/register-item", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(registrationData),
+        });
+
         if (!res.ok) {
-          const errorText = await res.text();
-          throw new Error(`Failed to register item: ${errorText}`);
+          throw new Error(`Failed to register item: ${await res.text()}`);
         }
 
         return await res.json();
       } catch (error) {
-        console.error('Registration error:', error);
+        console.error("Registration error:", error);
         throw error;
       } finally {
         setUploading(false);
@@ -117,14 +120,11 @@ export default function RegisterItem() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      console.log('Selected files:', files.length);
       setSelectedFiles(files);
     }
   };
 
   const onSubmit = async (data: InsertRegisteredItem) => {
-    console.log('Form submitted with data:', data);
-
     if (selectedFiles.length === 0) {
       toast({
         title: "Error",
@@ -137,7 +137,7 @@ export default function RegisterItem() {
     try {
       await registerMutation.mutateAsync(data);
     } catch (error) {
-      console.error('Form submission failed:', error);
+      console.error("Form submission failed:", error);
     }
   };
 
@@ -207,7 +207,7 @@ export default function RegisterItem() {
                     <FormItem>
                       <FormLabel>Official ID *</FormLabel>
                       <FormControl>
-                        <Input {...field} placeholder="IMEI, Serial Number, or Document ID" />
+                        <Input {...field} placeholder="Serial Number or Document ID" />
                       </FormControl>
                       <FormDescription>
                         Enter the unique identifier of your item
@@ -228,7 +228,7 @@ export default function RegisterItem() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="grid w-full max-w-sm items-center gap-1.5">
-                  <Label htmlFor="pictures">Pictures *</Label>
+                  <FormLabel htmlFor="pictures">Pictures *</FormLabel>
                   <Input
                     id="pictures"
                     type="file"
@@ -250,12 +250,12 @@ export default function RegisterItem() {
                       <FormControl>
                         <Input 
                           type="file" 
-                          accept=".pdf,.jpg,.png" 
+                          accept=".pdf,.jpg,.png"
                           onChange={(e) => {
                             if (e.target.files?.[0]) {
                               field.onChange(e.target.files[0].name);
                             }
-                          }} 
+                          }}
                         />
                       </FormControl>
                       <FormDescription>
@@ -277,7 +277,7 @@ export default function RegisterItem() {
                 Cancel
               </Button>
               <Button 
-                type="submit" 
+                type="submit"
                 disabled={registerMutation.isPending || uploading}
               >
                 {(registerMutation.isPending || uploading) && (

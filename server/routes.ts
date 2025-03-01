@@ -25,11 +25,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // File upload endpoint
   app.post("/api/upload", upload.single("file"), (req, res) => {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      const fileUrl = `/uploads/${req.file.filename}`;
+      res.json({ url: fileUrl });
+    } catch (error) {
+      console.error('File upload error:', error);
+      res.status(500).json({ error: "Failed to upload file" });
     }
-    const fileUrl = `/uploads/${req.file.filename}`;
-    res.json({ url: fileUrl });
   });
 
   setupAuth(app);
@@ -324,7 +329,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ shareUrl: result.url });
   });
 
-  // Register item route
+  // Register item route (This part is mostly already present in the original code)
   app.post("/api/register-item", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -337,7 +342,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: parsed.error.errors });
       }
 
-      // Generate unique ID and prepare registration data
       const registrationData = {
         ...parsed.data,
         uniqueId: nanoid(),
@@ -346,8 +350,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'ACTIVE'
       };
 
+      console.log('Creating registered item with data:', registrationData);
+
       const registeredItem = await storage.createRegisteredItem(registrationData);
       console.log('Item registered successfully:', registeredItem);
+
       res.status(201).json(registeredItem);
     } catch (error) {
       console.error('Error registering item:', error);
