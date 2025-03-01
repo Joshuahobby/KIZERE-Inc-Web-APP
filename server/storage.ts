@@ -222,7 +222,7 @@ export class DatabaseStorage implements IStorage {
         suggestedCategories: [],
         categoryFeatures: {},
         socialShares: [],
-        totalShares: 0,
+        totalShares: 0
       }).returning();
 
       console.log('Document created successfully:', newDocument);
@@ -259,7 +259,9 @@ export class DatabaseStorage implements IStorage {
 
   async getAllDocuments(): Promise<Document[]> {
     try {
-      return await db.select().from(documents);
+      console.log('Fetching all documents');
+      const result = await db.select().from(documents);
+      return result;
     } catch (error) {
       console.error('Error getting all documents:', error);
       throw error;

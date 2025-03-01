@@ -2,19 +2,18 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
-import { insertDocumentSchema, insertDeviceSchema } from "@shared/schema";
+import { insertDocumentSchema, insertDeviceSchema, insertRegisteredItemSchema } from "@shared/schema";
 import { adminRouter } from "./routes/admin";
 import { setupWebSocket, notificationServer } from "./websocket";
-import { categorizeItem, recordMLMetrics } from "./services/categorization";
+import { categorizeItem } from "./services/categorization";
 import { SocialShareService } from './services/social-share';
-import { nanoid } from 'nanoid';
 import multer from "multer";
-import { nanoid as nanoid2 } from "nanoid";
+import { nanoid } from "nanoid";
 import path from "path";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
-  const storage = multer.diskStorage({
+  const uploadStorage = multer.diskStorage({
     destination: "./uploads",
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -22,14 +21,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const upload = multer({ storage: storage });
+  const upload = multer({ storage: uploadStorage });
 
   // File upload endpoint
   app.post("/api/upload", upload.single("file"), (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
-    // Return the file URL that can be used to access the uploaded file
     const fileUrl = `/uploads/${req.file.filename}`;
     res.json({ url: fileUrl });
   });
@@ -41,16 +39,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Documents routes
   app.get("/api/documents", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
 
-    const query = req.query.q as string;
-    if (query) {
-      const documents = await storage.searchDocuments(query);
-      return res.json(documents);
+      const query = req.query.q as string;
+      if (query) {
+        const documents = await storage.searchDocuments(query);
+        return res.json(documents);
+      }
+
+      const documents = await storage.getAllDocuments();
+      res.json(documents);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      res.status(500).json({ error: "Failed to fetch documents" });
     }
-
-    const documents = await storage.getAllDocuments();
-    res.json(documents);
   });
 
   // Document creation route
@@ -321,30 +324,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ shareUrl: result.url });
   });
 
-  // Registration routes
+  // Register item route
   app.post("/api/register-item", async (req, res) => {
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
 
       console.log('Received item registration request:', req.body);
 
-      const { itemType, officialId, pictures, proofOfOwnership, metadata } = req.body;
+      const parsed = insertRegisteredItemSchema.safeParse(req.body);
+      if (!parsed.success) {
+        console.error('Registration validation failed:', parsed.error);
+        return res.status(400).json({ error: parsed.error.errors });
+      }
 
-      // Generate unique ID for the registered item
-      const uniqueId = nanoid2();
-
-      const registeredItem = await storage.createRegisteredItem({
-        uniqueId,
-        itemType,
-        officialId,
-        pictures,
-        proofOfOwnership,
-        metadata,
-        registrationDate: new Date(),
-        ownerId: req.user.id,
-        status: 'ACTIVE'
-      }, req.user.id);
-
+      const registeredItem = await storage.createRegisteredItem(parsed.data, req.user.id);
       console.log('Item registered successfully:', registeredItem);
 
       res.status(201).json(registeredItem);
