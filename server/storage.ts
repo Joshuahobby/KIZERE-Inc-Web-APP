@@ -645,7 +645,11 @@ export class DatabaseStorage implements IStorage {
   // Registered items implementation
   async createRegisteredItem(item: InsertRegisteredItem): Promise<RegisteredItem> {
     try {
-      console.log('Creating registered item:', item);
+      console.log('Creating registered item with data:', {
+        ...item,
+        pictures: item.pictures.length,
+        proofOfOwnership: item.proofOfOwnership ? 'provided' : 'not provided'
+      });
 
       const [registeredItem] = await db.insert(registeredItems).values({
         uniqueId: item.uniqueId,
@@ -655,17 +659,26 @@ export class DatabaseStorage implements IStorage {
         registrationDate: item.registrationDate,
         pictures: item.pictures,
         proofOfOwnership: item.proofOfOwnership,
-        metadata: item.metadata,
-        status: item.status,
+        metadata: item.metadata || {},
+        status: item.status || 'ACTIVE',
         createdAt: new Date(),
         updatedAt: new Date()
       }).returning();
 
-      console.log('Registered item created:', registeredItem);
+      console.log('Successfully created registered item:', {
+        id: registeredItem.id,
+        uniqueId: registeredItem.uniqueId,
+        itemType: registeredItem.itemType,
+        status: registeredItem.status
+      });
+
       return registeredItem;
     } catch (error) {
       console.error('Error creating registered item:', error);
-      throw error;
+      if (error instanceof Error) {
+        throw new Error(`Failed to create registered item: ${error.message}`);
+      }
+      throw new Error('Failed to create registered item: Unknown error');
     }
   }
 

@@ -55,17 +55,21 @@ export default function RegisterItem() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: InsertRegisteredItem) => {
-      console.log('Starting registration mutation with data:', data);
       setUploading(true);
       try {
-        const formData = new FormData();
+        console.log('Starting registration with data:', data);
 
-        // Add basic fields
+        // Create the form data
+        const formData = new FormData();
         formData.append("itemType", data.itemType);
         formData.append("officialId", data.officialId);
         formData.append("metadata", JSON.stringify(data.metadata || {}));
 
         // Add pictures
+        if (selectedFiles.length === 0) {
+          throw new Error("At least one picture is required");
+        }
+
         selectedFiles.forEach((file) => {
           formData.append("pictures", file);
         });
@@ -84,7 +88,7 @@ export default function RegisterItem() {
         if (!response.ok) {
           const errorText = await response.text();
           console.error('Registration failed:', errorText);
-          throw new Error(`Registration failed: ${errorText}`);
+          throw new Error(errorText);
         }
 
         const result = await response.json();
@@ -98,7 +102,6 @@ export default function RegisterItem() {
       }
     },
     onSuccess: () => {
-      console.log('Registration successful, invalidating queries...');
       queryClient.invalidateQueries({ queryKey: ["/api/registered-items"] });
       toast({
         title: "Success",
@@ -107,7 +110,6 @@ export default function RegisterItem() {
       setLocation("/");
     },
     onError: (error: Error) => {
-      console.error('Registration mutation error:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -119,15 +121,16 @@ export default function RegisterItem() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const files = Array.from(e.target.files);
-      console.log('Selected picture files:', files.length);
+      console.log('Selected picture files:', files.map(f => f.name));
       setSelectedFiles(files);
     }
   };
 
   const handleProofFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
-      console.log('Selected proof file:', e.target.files[0].name);
-      setProofFile(e.target.files[0]);
+      const file = e.target.files[0];
+      console.log('Selected proof file:', file.name);
+      setProofFile(file);
     }
   };
 
@@ -144,7 +147,6 @@ export default function RegisterItem() {
     }
 
     try {
-      console.log('Initiating registration mutation...');
       await registerMutation.mutateAsync(data);
     } catch (error) {
       console.error('Form submission error:', error);
@@ -167,13 +169,6 @@ export default function RegisterItem() {
             Register your valuable items for better protection and recovery
           </p>
         </div>
-
-        <Alert className="mb-6">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Please provide accurate information and clear pictures of your item. This will help in verification and recovery if needed.
-          </AlertDescription>
-        </Alert>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -294,6 +289,12 @@ export default function RegisterItem() {
             </div>
           </form>
         </Form>
+        <Alert className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            Please provide accurate information and clear pictures of your item. This will help in verification and recovery if needed.
+          </AlertDescription>
+        </Alert>
       </div>
     </div>
   );

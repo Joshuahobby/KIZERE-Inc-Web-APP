@@ -112,7 +112,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const registrationData = {
-        ...req.body,
+        itemType: req.body.itemType,
+        officialId: req.body.officialId,
         pictures,
         proofOfOwnership,
         metadata,

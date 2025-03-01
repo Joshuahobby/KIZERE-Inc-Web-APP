@@ -205,7 +205,7 @@ export const insertRegisteredItemSchema = createInsertSchema(registeredItems)
       required_error: "Item type is required",
       invalid_type_error: "Must be either DOCUMENT or DEVICE"
     }),
-    pictures: z.array(z.string().url("Invalid picture URL")).min(1, "At least one picture is required"),
+    pictures: z.array(z.string()).min(1, "At least one picture is required"),
     proofOfOwnership: z.string().optional(),
     metadata: z.record(z.unknown()).optional(),
   });
