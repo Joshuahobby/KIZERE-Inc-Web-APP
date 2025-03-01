@@ -655,23 +655,6 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
       }).returning();
 
-      // Update the corresponding document or device
-      if (item.itemType === 'DOCUMENT') {
-        await db.update(documents)
-          .set({ 
-            isRegistered: true,
-            registeredItemId: registeredItem.id 
-          })
-          .where(eq(documents.id, item.itemId));
-      } else {
-        await db.update(devices)
-          .set({ 
-            isRegistered: true,
-            registeredItemId: registeredItem.id 
-          })
-          .where(eq(devices.id, item.itemId));
-      }
-
       console.log('Registered item created:', registeredItem);
       return registeredItem;
     } catch (error) {
