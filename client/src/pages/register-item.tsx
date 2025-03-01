@@ -47,6 +47,7 @@ export default function RegisterItem() {
       itemType: "DOCUMENT",
       officialId: "",
       pictures: [],
+      proofOfOwnership: undefined,
       metadata: {},
     },
   });
@@ -56,42 +57,49 @@ export default function RegisterItem() {
       setUploading(true);
       try {
         // Upload pictures first
-        const pictureUrls = await Promise.all(
-          selectedFiles.map(async (file) => {
-            const formData = new FormData();
-            formData.append("file", file);
+        const uploadPromises = selectedFiles.map(async (file) => {
+          const formData = new FormData();
+          formData.append("file", file);
 
-            const res = await fetch("/api/upload", {
-              method: "POST",
-              body: formData,
-            });
+          const response = await fetch("/api/upload", {
+            method: "POST",
+            body: formData,
+          });
 
-            if (!res.ok) {
-              throw new Error(`Failed to upload file: ${await res.text()}`);
-            }
+          if (!response.ok) {
+            throw new Error(`Failed to upload file: ${await response.text()}`);
+          }
 
-            const { url } = await res.json();
-            return url;
-          })
-        );
+          const result = await response.json();
+          return result.url;
+        });
 
-        // Submit registration with uploaded URLs
-        const registrationData = {
-          ...data,
-          pictures: pictureUrls,
-        };
+        const pictureUrls = await Promise.all(uploadPromises);
 
-        const res = await apiRequest("POST", "/api/register-item", registrationData);
-        if (!res.ok) {
-          throw new Error(`Registration failed: ${await res.text()}`);
+        // Create registration data
+        const formData = new FormData();
+        formData.append("itemType", data.itemType);
+        formData.append("officialId", data.officialId);
+        formData.append("pictures", JSON.stringify(pictureUrls));
+        if (data.proofOfOwnership) {
+          formData.append("proofOfOwnership", data.proofOfOwnership);
+        }
+        formData.append("metadata", JSON.stringify(data.metadata || {}));
+
+        // Submit registration
+        const response = await fetch("/api/register-item", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Registration failed: ${await response.text()}`);
         }
 
-        return await res.json();
+        return response.json();
       } catch (error) {
-        if (error instanceof Error) {
-          throw error;
-        }
-        throw new Error("An unknown error occurred");
+        console.error("Registration error:", error);
+        throw error instanceof Error ? error : new Error("Registration failed");
       } finally {
         setUploading(false);
       }
@@ -250,7 +258,7 @@ export default function RegisterItem() {
                           accept=".pdf,.jpg,.png"
                           onChange={(e) => {
                             if (e.target.files?.[0]) {
-                              field.onChange(e.target.files[0].name);
+                              field.onChange(e.target.files[0]);
                             }
                           }}
                         />

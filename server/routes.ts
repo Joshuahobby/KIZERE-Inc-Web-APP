@@ -10,37 +10,168 @@ import { SocialShareService } from './services/social-share';
 import multer from "multer";
 import { nanoid } from "nanoid";
 import path from "path";
+import fs from 'fs';
+import express from 'express'; //Import express for static file serving
+
+// Ensure uploads directory exists
+const uploadDir = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
   const uploadStorage = multer.diskStorage({
-    destination: "./uploads",
+    destination: uploadDir,
     filename: (req, file, cb) => {
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
       cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
     }
   });
 
-  const upload = multer({ storage: uploadStorage });
+  const upload = multer({ 
+    storage: uploadStorage,
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+      if (allowedTypes.includes(file.mimetype)) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid file type. Only JPG, PNG, GIF and PDF files are allowed.'));
+      }
+    }
+  });
+
+  // Serve uploaded files statically
+  app.use('/uploads', express.static(uploadDir));
 
   // File upload endpoint
   app.post("/api/upload", upload.single("file"), (req, res) => {
     try {
+      console.log('File upload request received');
+
       if (!req.file) {
+        console.error('No file uploaded');
         return res.status(400).json({ error: "No file uploaded" });
       }
+
+      console.log('File uploaded successfully:', req.file.filename);
       const fileUrl = `/uploads/${req.file.filename}`;
       res.json({ url: fileUrl });
     } catch (error) {
       console.error('File upload error:', error);
-      res.status(500).json({ error: "Failed to upload file" });
+      res.status(500).json({ 
+        error: "Failed to upload file",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
   setupAuth(app);
-
-  // Mount admin routes
   app.use("/api/admin", adminRouter);
+
+  // Register item route
+  app.post("/api/register-item", upload.single('itemImage'), async (req, res) => { //Added multer middleware
+    try {
+      if (!req.isAuthenticated()) {
+        console.log('Unauthorized registration attempt');
+        return res.sendStatus(401);
+      }
+
+      console.log('Registration request received:', req.body);
+
+      const parsed = insertRegisteredItemSchema.safeParse(req.body);
+      if (!parsed.success) {
+        console.error('Registration validation failed:', parsed.error);
+        return res.status(400).json({ error: parsed.error.errors });
+      }
+
+      const registrationData = {
+        ...parsed.data,
+        uniqueId: nanoid(),
+        ownerId: req.user.id,
+        registrationDate: new Date(),
+        status: 'ACTIVE',
+        itemImage: req.file ? `/uploads/${req.file.filename}` : null // Add image URL if file uploaded
+      };
+
+      console.log('Attempting to create registered item:', registrationData);
+
+      const registeredItem = await storage.createRegisteredItem(registrationData);
+      console.log('Item registered successfully:', registeredItem);
+
+      res.status(201).json(registeredItem);
+    } catch (error) {
+      console.error('Error in item registration:', error);
+      res.status(500).json({ 
+        error: "Failed to register item",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Document creation route
+  app.post("/api/documents", async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) {
+        console.log('Unauthorized document creation attempt');
+        return res.sendStatus(401);
+      }
+
+      console.log('Document creation request received:', req.body);
+
+      const parsed = insertDocumentSchema.safeParse(req.body);
+      if (!parsed.success) {
+        console.error('Document validation failed:', parsed.error);
+        return res.status(400).json({ error: parsed.error.errors });
+      }
+
+      const uniqueId = nanoid();
+      const { suggestedCategories, categoryFeatures } = await categorizeItem(
+        parsed.data.title,
+        parsed.data.description
+      );
+
+      console.log('ML Categorization results:', { suggestedCategories, categoryFeatures });
+
+      const documentData = {
+        ...parsed.data,
+        uniqueId,
+        suggestedCategories,
+        categoryFeatures,
+        mlProcessedAt: new Date().toISOString(),
+        socialShares: [],
+        lastSharedAt: null,
+        totalShares: 0,
+        moderated: false,
+        moderatedBy: null,
+        moderatedAt: null,
+        qrCode: null,
+        qrCodeGeneratedAt: null
+      };
+
+      console.log('Creating document with data:', documentData);
+
+      const document = await storage.createDocument(documentData, req.user.id);
+      console.log('Document created successfully:', document);
+
+      notificationServer.broadcastAdminNotification({
+        type: "ADMIN_ALERT",
+        message: `New ${document.status.toLowerCase()} document reported`,
+        data: { document },
+      });
+
+      res.status(201).json(document);
+    } catch (error) {
+      console.error('Error in document creation:', error);
+      res.status(500).json({ 
+        error: "Failed to create document",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
 
   // Documents routes
   app.get("/api/documents", async (req, res) => {
@@ -60,71 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch documents" });
     }
   });
-
-  // Document creation route
-  app.post("/api/documents", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-
-      console.log('Received document creation request:', req.body);
-
-      const parsed = insertDocumentSchema.safeParse(req.body);
-      if (!parsed.success) {
-        console.error('Document validation failed:', parsed.error);
-        return res.status(400).json({ error: parsed.error.errors });
-      }
-
-      // Generate unique ID first
-      const uniqueId = nanoid();
-      console.log('Generated uniqueId:', uniqueId);
-
-      // Get ML categorization
-      const { suggestedCategories, categoryFeatures } = await categorizeItem(
-        parsed.data.title,
-        parsed.data.description
-      );
-
-      console.log('ML Categorization results:', { suggestedCategories, categoryFeatures });
-
-      // Create document with all required fields
-      const documentData = {
-        ...parsed.data,
-        uniqueId,
-        suggestedCategories,
-        categoryFeatures,
-        mlProcessedAt: new Date().toISOString(),
-        socialShares: [],
-        lastSharedAt: null,
-        totalShares: 0,
-        moderated: false,
-        moderatedBy: null,
-        moderatedAt: null,
-        qrCode: null,
-        qrCodeGeneratedAt: null
-      };
-
-      console.log('Attempting to create document with data:', documentData);
-
-      const document = await storage.createDocument(documentData, req.user.id);
-      console.log('Document created successfully:', document);
-
-      // Send notification to admins
-      notificationServer.broadcastAdminNotification({
-        type: "ADMIN_ALERT",
-        message: `New ${document.status.toLowerCase()} document reported`,
-        data: { document },
-      });
-
-      res.status(201).json(document);
-    } catch (error) {
-      console.error('Error in document creation:', error);
-      res.status(500).json({ 
-        error: "Error creating document",
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
+  
   app.patch("/api/documents/:id/status", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -327,42 +394,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     res.json({ shareUrl: result.url });
-  });
-
-  // Register item route (This part is mostly already present in the original code)
-  app.post("/api/register-item", async (req, res) => {
-    try {
-      if (!req.isAuthenticated()) return res.sendStatus(401);
-
-      console.log('Received item registration request:', req.body);
-
-      const parsed = insertRegisteredItemSchema.safeParse(req.body);
-      if (!parsed.success) {
-        console.error('Registration validation failed:', parsed.error);
-        return res.status(400).json({ error: parsed.error.errors });
-      }
-
-      const registrationData = {
-        ...parsed.data,
-        uniqueId: nanoid(),
-        ownerId: req.user.id,
-        registrationDate: new Date(),
-        status: 'ACTIVE'
-      };
-
-      console.log('Creating registered item with data:', registrationData);
-
-      const registeredItem = await storage.createRegisteredItem(registrationData);
-      console.log('Item registered successfully:', registeredItem);
-
-      res.status(201).json(registeredItem);
-    } catch (error) {
-      console.error('Error registering item:', error);
-      res.status(500).json({ 
-        error: "Error registering item",
-        details: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
   });
 
   app.get("/api/registered-items", async (req, res) => {
