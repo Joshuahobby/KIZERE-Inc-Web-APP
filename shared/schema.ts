@@ -195,16 +195,15 @@ export const insertRegisteredItemSchema = createInsertSchema(registeredItems)
   .pick({
     officialId: true,
     itemType: true,
-    registrationDate: true,
-    expiryDate: true,
-    proofOfOwnership: true,
     pictures: true,
+    proofOfOwnership: true,
     metadata: true,
   })
   .extend({
     officialId: z.string().min(1, "Official ID is required"),
     itemType: z.enum(["DOCUMENT", "DEVICE"]),
     pictures: z.array(z.string()).min(1, "At least one picture is required"),
+    proofOfOwnership: z.string().optional(),
     metadata: z.record(z.unknown()).optional(),
   });
 

@@ -337,9 +337,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: parsed.error.errors });
       }
 
-      const registeredItem = await storage.createRegisteredItem(parsed.data, req.user.id);
-      console.log('Item registered successfully:', registeredItem);
+      const registeredItem = await storage.createRegisteredItem({
+        ...parsed.data,
+        uniqueId: nanoid(),
+        ownerId: req.user.id,
+        registrationDate: new Date(),
+        status: 'ACTIVE'
+      });
 
+      console.log('Item registered successfully:', registeredItem);
       res.status(201).json(registeredItem);
     } catch (error) {
       console.error('Error registering item:', error);
@@ -381,9 +387,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
   const httpServer = createServer(app);
-
-  // Setup WebSocket server
   setupWebSocket(httpServer);
-
   return httpServer;
 }

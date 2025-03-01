@@ -63,10 +63,14 @@ export default function RegisterItem() {
             const formData = new FormData();
             formData.append("file", file);
             console.log('Uploading file:', file.name);
-            const res = await apiRequest("POST", "/api/upload", formData);
+            const res = await fetch("/api/upload", {
+              method: "POST",
+              body: formData,
+            });
             if (!res.ok) {
-              console.error('File upload failed:', await res.text());
-              throw new Error("Failed to upload file");
+              const errorText = await res.text();
+              console.error('File upload failed:', errorText);
+              throw new Error("Failed to upload file: " + errorText);
             }
             const { url } = await res.json();
             console.log('File uploaded successfully:', url);
@@ -81,7 +85,14 @@ export default function RegisterItem() {
         };
 
         console.log('Submitting registration with data:', registrationData);
-        const res = await apiRequest("POST", "/api/register-item", registrationData);
+        const res = await fetch("/api/register-item", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(registrationData),
+        });
+
         if (!res.ok) {
           const errorText = await res.text();
           console.error('Registration failed:', errorText);
@@ -123,9 +134,10 @@ export default function RegisterItem() {
     }
   };
 
-  const onSubmit = (data: InsertRegisteredItem) => {
+  const onSubmit = async (data: InsertRegisteredItem) => {
     console.log('Form submitted with data:', data);
     console.log('Selected files:', selectedFiles);
+
     if (selectedFiles.length === 0) {
       toast({
         title: "Error",
@@ -134,7 +146,12 @@ export default function RegisterItem() {
       });
       return;
     }
-    registerMutation.mutate(data);
+
+    try {
+      await registerMutation.mutateAsync(data);
+    } catch (error) {
+      console.error('Form submission failed:', error);
+    }
   };
 
   return (

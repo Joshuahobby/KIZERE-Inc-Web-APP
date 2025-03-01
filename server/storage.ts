@@ -80,7 +80,7 @@ export interface IStorage {
   sessionStore: session.Store;
 
   // Registered items methods
-  createRegisteredItem(item: InsertRegisteredItem, userId: number): Promise<RegisteredItem>;
+  createRegisteredItem(item: InsertRegisteredItem): Promise<RegisteredItem>;
   getRegisteredItem(id: number): Promise<RegisteredItem | undefined>;
   getRegisteredItemByOfficialId(officialId: string): Promise<RegisteredItem | undefined>;
   getUserRegisteredItems(userId: number): Promise<RegisteredItem[]>;
@@ -643,15 +643,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Registered items implementation
-  async createRegisteredItem(item: InsertRegisteredItem, userId: number): Promise<RegisteredItem> {
+  async createRegisteredItem(item: InsertRegisteredItem): Promise<RegisteredItem> {
     try {
       console.log('Creating registered item:', item);
 
       const [registeredItem] = await db.insert(registeredItems).values({
-        ...item,
-        uniqueId: nanoid(10),
-        ownerId: userId,
-        status: 'ACTIVE',
+        uniqueId: item.uniqueId,
+        officialId: item.officialId,
+        itemType: item.itemType,
+        ownerId: item.ownerId,
+        registrationDate: item.registrationDate,
+        pictures: item.pictures,
+        proofOfOwnership: item.proofOfOwnership,
+        metadata: item.metadata,
+        status: item.status,
         createdAt: new Date(),
       }).returning();
 
