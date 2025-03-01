@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader2, ClipboardList } from "lucide-react";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { DocumentCard } from "@/components/document-card";
@@ -71,10 +71,16 @@ export default function HomePage() {
               Report Item
             </Link>
           </Button>
-          <Button variant="outline" asChild>
+          <Button asChild variant="outline">
             <Link to="/search">
               <Search className="mr-2 h-4 w-4" />
               Search Items
+            </Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link to="/register-item">
+              <ClipboardList className="mr-2 h-4 w-4" />
+              Register Your Item
             </Link>
           </Button>
         </div>
@@ -154,12 +160,20 @@ export default function HomePage() {
           <p className="text-muted-foreground mb-4">
             Start by reporting a lost or found item
           </p>
-          <Button asChild>
-            <Link to="/report">
-              <Plus className="mr-2 h-4 w-4" />
-              Report Item
-            </Link>
-          </Button>
+          <div className="flex gap-2 justify-center">
+            <Button asChild>
+              <Link to="/report">
+                <Plus className="mr-2 h-4 w-4" />
+                Report Item
+              </Link>
+            </Button>
+            <Button asChild variant="secondary">
+              <Link to="/register-item">
+                <ClipboardList className="mr-2 h-4 w-4" />
+                Register Your Item
+              </Link>
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="space-y-8">
