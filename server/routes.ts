@@ -337,14 +337,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: parsed.error.errors });
       }
 
-      const registeredItem = await storage.createRegisteredItem({
+      // Generate unique ID and prepare registration data
+      const registrationData = {
         ...parsed.data,
         uniqueId: nanoid(),
         ownerId: req.user.id,
         registrationDate: new Date(),
         status: 'ACTIVE'
-      });
+      };
 
+      const registeredItem = await storage.createRegisteredItem(registrationData);
       console.log('Item registered successfully:', registeredItem);
       res.status(201).json(registeredItem);
     } catch (error) {

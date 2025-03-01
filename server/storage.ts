@@ -658,6 +658,7 @@ export class DatabaseStorage implements IStorage {
         metadata: item.metadata,
         status: item.status,
         createdAt: new Date(),
+        updatedAt: new Date()
       }).returning();
 
       console.log('Registered item created:', registeredItem);

@@ -53,63 +53,51 @@ export default function RegisterItem() {
 
   const registerMutation = useMutation({
     mutationFn: async (data: InsertRegisteredItem) => {
-      console.log('Starting item registration with data:', data);
       setUploading(true);
       try {
-        // First upload all pictures
-        console.log('Uploading files:', selectedFiles.length, 'files');
+        // Upload all pictures first
         const pictureUrls = await Promise.all(
           selectedFiles.map(async (file) => {
             const formData = new FormData();
             formData.append("file", file);
-            console.log('Uploading file:', file.name);
+
             const res = await fetch("/api/upload", {
               method: "POST",
               body: formData,
             });
+
             if (!res.ok) {
               const errorText = await res.text();
-              console.error('File upload failed:', errorText);
-              throw new Error("Failed to upload file: " + errorText);
+              throw new Error(`Failed to upload file: ${errorText}`);
             }
+
             const { url } = await res.json();
-            console.log('File uploaded successfully:', url);
             return url;
           })
         );
 
-        // Then create the registration with picture URLs
+        // Create registration data with uploaded picture URLs
         const registrationData = {
           ...data,
           pictures: pictureUrls,
         };
 
-        console.log('Submitting registration with data:', registrationData);
-        const res = await fetch("/api/register-item", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(registrationData),
-        });
-
+        // Submit registration
+        const res = await apiRequest("POST", "/api/register-item", registrationData);
         if (!res.ok) {
           const errorText = await res.text();
-          console.error('Registration failed:', errorText);
-          throw new Error("Failed to register item: " + errorText);
+          throw new Error(`Failed to register item: ${errorText}`);
         }
-        const result = await res.json();
-        console.log('Registration successful:', result);
-        return result;
+
+        return await res.json();
       } catch (error) {
-        console.error('Error in registration process:', error);
+        console.error('Registration error:', error);
         throw error;
       } finally {
         setUploading(false);
       }
     },
     onSuccess: () => {
-      console.log('Registration mutation succeeded');
       queryClient.invalidateQueries({ queryKey: ["/api/registered-items"] });
       toast({
         title: "Success",
@@ -118,7 +106,6 @@ export default function RegisterItem() {
       setLocation("/");
     },
     onError: (error: Error) => {
-      console.error('Registration mutation failed:', error);
       toast({
         title: "Error",
         description: error.message,
@@ -129,14 +116,14 @@ export default function RegisterItem() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      console.log('Files selected:', e.target.files.length, 'files');
-      setSelectedFiles(Array.from(e.target.files));
+      const files = Array.from(e.target.files);
+      console.log('Selected files:', files.length);
+      setSelectedFiles(files);
     }
   };
 
   const onSubmit = async (data: InsertRegisteredItem) => {
     console.log('Form submitted with data:', data);
-    console.log('Selected files:', selectedFiles);
 
     if (selectedFiles.length === 0) {
       toast({
@@ -179,10 +166,7 @@ export default function RegisterItem() {
         </Alert>
 
         <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-8"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
             <Card>
               <CardHeader>
                 <CardTitle>Basic Information</CardTitle>
@@ -264,11 +248,15 @@ export default function RegisterItem() {
                     <FormItem>
                       <FormLabel>Proof of Ownership</FormLabel>
                       <FormControl>
-                        <Input type="file" accept=".pdf,.jpg,.png" onChange={(e) => {
-                          if (e.target.files?.[0]) {
-                            field.onChange(e.target.files[0].name);
-                          }
-                        }} />
+                        <Input 
+                          type="file" 
+                          accept=".pdf,.jpg,.png" 
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) {
+                              field.onChange(e.target.files[0].name);
+                            }
+                          }} 
+                        />
                       </FormControl>
                       <FormDescription>
                         Upload receipt, warranty card, or other proof of ownership
