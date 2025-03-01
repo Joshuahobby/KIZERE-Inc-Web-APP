@@ -186,6 +186,8 @@ export const registeredItems = pgTable("registered_items", {
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at"),
+  latestBlockchainHash: text("latest_blockchain_hash"),
+  blockchainSynced: boolean("blockchain_synced").notNull().default(false),
 });
 
 // Add insert schema for registered items
@@ -477,6 +479,49 @@ export const SystemMetricValue = z.union([
 export type SystemMetricValue = z.infer<typeof SystemMetricValue>;
 
 // Update systemMetrics table definition
+
+
+// Add blockchain-related types and schemas
+export const BlockchainTransactionType = z.enum([
+  "ITEM_REGISTERED",
+  "ITEM_UPDATED",
+  "OWNERSHIP_TRANSFERRED",
+  "STATUS_CHANGED"
+]);
+export type BlockchainTransactionType = z.infer<typeof BlockchainTransactionType>;
+
+export const blockchainTransactions = pgTable("blockchain_transactions", {
+  id: serial("id").primaryKey(),
+  timestamp: timestamp("timestamp").notNull().defaultNow(),
+  transactionType: text("transaction_type").notNull(),
+  itemId: integer("item_id").notNull(),
+  itemType: text("item_type").notNull(), // DOCUMENT or DEVICE
+  transactionHash: text("transaction_hash").notNull(),
+  blockNumber: integer("block_number").notNull(),
+  previousHash: text("previous_hash"),
+  metadata: jsonb("metadata"),
+  userId: integer("user_id").references(() => users.id),
+});
+
+export const insertBlockchainTransactionSchema = createInsertSchema(blockchainTransactions)
+  .pick({
+    transactionType: true,
+    itemId: true,
+    itemType: true,
+    transactionHash: true,
+    blockNumber: true,
+    previousHash: true,
+    metadata: true,
+    userId: true,
+  })
+  .extend({
+    transactionType: BlockchainTransactionType,
+    metadata: z.record(z.unknown()).optional(),
+  });
+
+// Export types
+export type BlockchainTransaction = typeof blockchainTransactions.$inferSelect;
+export type InsertBlockchainTransaction = z.infer<typeof insertBlockchainTransactionSchema>;
 
 
 // Type exports

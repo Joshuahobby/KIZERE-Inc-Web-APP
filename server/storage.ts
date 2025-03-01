@@ -6,7 +6,8 @@ import {
   type SystemMetric, type InsertSystemMetric, type Analytic, type InsertAnalytic,
   type UserActivity, type InsertUserActivity, type ApiUsageMetric, type InsertApiUsageMetric,
   type IpAllowlist, type InsertIpAllowlist, type SecurityAuditLog, type InsertSecurityAuditLog,
-  type RegisteredItem, type InsertRegisteredItem
+  type RegisteredItem, type InsertRegisteredItem,
+  type BlockchainTransaction, type InsertBlockchainTransaction
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql, desc, and, or } from "drizzle-orm";
@@ -84,6 +85,11 @@ export interface IStorage {
   getRegisteredItemByOfficialId(officialId: string): Promise<RegisteredItem | undefined>;
   getUserRegisteredItems(userId: number): Promise<RegisteredItem[]>;
   updateRegisteredItem(id: number, updates: Partial<RegisteredItem>): Promise<RegisteredItem>;
+
+  // Blockchain methods
+  createBlockchainTransaction(transaction: InsertBlockchainTransaction): Promise<BlockchainTransaction>;
+  getItemBlockchainHistory(itemId: number, itemType: string): Promise<BlockchainTransaction[]>;
+  getBlockchainTransaction(transactionHash: string): Promise<BlockchainTransaction | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -721,6 +727,48 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error updating registered item:', error);
       throw error;
+    }
+  }
+
+  // Blockchain methods implementation
+  async createBlockchainTransaction(transaction: InsertBlockchainTransaction): Promise<BlockchainTransaction> {
+    try {
+      const [newTransaction] = await db.insert(blockchainTransactions)
+        .values(transaction)
+        .returning();
+      return newTransaction;
+    } catch (error) {
+      console.error('Error creating blockchain transaction:', error);
+      throw error;
+    }
+  }
+
+  async getItemBlockchainHistory(itemId: number, itemType: string): Promise<BlockchainTransaction[]> {
+    try {
+      return await db.select()
+        .from(blockchainTransactions)
+        .where(
+          and(
+            eq(blockchainTransactions.itemId, itemId),
+            eq(blockchainTransactions.itemType, itemType)
+          )
+        )
+        .orderBy(desc(blockchainTransactions.timestamp));
+    } catch (error) {
+      console.error('Error getting item blockchain history:', error);
+      throw error;
+    }
+  }
+
+  async getBlockchainTransaction(transactionHash: string): Promise<BlockchainTransaction | undefined> {
+    try {
+      const [transaction] = await db.select()
+        .from(blockchainTransactions)
+        .where(eq(blockchainTransactions.transactionHash, transactionHash));
+      return transaction;
+    } catch (error) {
+      console.error('Error getting blockchain transaction:', error);
+      return undefined;
     }
   }
 }
